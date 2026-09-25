@@ -38,6 +38,7 @@ export interface Alternative {
   operatorName: string;
   operatorCode: string;
   scheduledDeparture: string | null;
+  scheduledArrival: string | null;
   actualDeparture: string | null;
   actualArrival: string | null;
   estimatedJourneyDelay: number | null;

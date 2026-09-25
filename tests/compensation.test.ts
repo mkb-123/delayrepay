@@ -58,6 +58,14 @@ describe("journey uncertainty and alternatives", () => {
   it("keeps missing actual arrival for review", () => expect(assess(train({ actualArrival: null }), [], original).status).toBe("NEEDS_REVIEW"));
   it("keeps incomplete RTT data for review", () => expect(assess(train({ dataIssues: ["Missing call"] }), [], original).status).toBe("NEEDS_REVIEW"));
   it("keeps failed alternative collection for review", () => expect(assess(disrupted, [], original, false).status).toBe("NEEDS_REVIEW"));
+  it("does not let a later unresolved service mask a completed original delay", () => {
+    const later = train({ ...faster, id: "later", actualDeparture: null, actualArrival: null, scheduledDeparture: at("07:55"), scheduledArrival: at("08:35") });
+    expect(assess(disrupted, [later]).status).toBe("POTENTIAL");
+  });
+  it("keeps plausible earlier unresolved alternatives for review", () => {
+    const plausible = train({ ...faster, id: "plausible", actualDeparture: null, actualArrival: null, scheduledDeparture: at("07:10"), scheduledArrival: at("07:52") });
+    expect(assess(disrupted, [plausible]).status).toBe("NEEDS_REVIEW");
+  });
   it("keeps unknown operators for review", () => expect(assess(train({ operatorCode: "XX" }), [], original).status).toBe("NEEDS_REVIEW"));
   it("does not backdate researched terms", () => expect(assess(train({ serviceDate: "2026-09-24" }), [], original).status).toBe("NEEDS_REVIEW"));
   it("treats unused journeys as refund cases", () => expect(assess(disrupted, [], { ...original, travelled: "NOT_TRAVELLED" }).status).toBe("NO_CLAIM"));

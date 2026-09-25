@@ -23,7 +23,8 @@ export function alternativesFor(s: RailService, all: RailService[], evidence: Jo
       }
       return {
         serviceId: a.id, rttServiceId: a.rttServiceId, operatorName: a.operatorName, operatorCode: a.operatorCode,
-        scheduledDeparture: a.scheduledDeparture, actualDeparture: a.actualDeparture, actualArrival: a.actualArrival,
+        scheduledDeparture: a.scheduledDeparture, scheduledArrival: a.scheduledArrival,
+        actualDeparture: a.actualDeparture, actualArrival: a.actualArrival,
         estimatedJourneyDelay: minutesBetween(a.actualArrival, s.scheduledArrival), applicability, reason,
       };
     }).sort((a,b) => (a.actualArrival ?? "9999").localeCompare(b.actualArrival ?? "9999"));
@@ -83,7 +84,14 @@ export function assess(s: RailService, all: RailService[], evidence = defaultEvi
   if (raw < rule.minimumDelay)
     return finish("NO_CLAIM", "recorded destination delay is " + Math.max(0, raw) + " minutes, below the " + rule.minimumDelay + "-minute threshold for this service.", Math.max(0, raw));
   const earlier = alternatives.filter(a => a.applicability !== "EXCLUDED" && a.actualArrival && Date.parse(a.actualArrival) < Date.parse(s.actualArrival!));
-  const unresolved = alternatives.some(a => a.applicability !== "EXCLUDED" && (!a.actualArrival || !a.actualDeparture));
+  const unresolved = alternatives.some(a => {
+    if (a.applicability === "EXCLUDED" || (a.actualArrival && a.actualDeparture)) return false;
+    const comparableArrival = a.actualArrival ?? a.scheduledArrival;
+    const comparableDeparture = a.actualDeparture ?? a.scheduledDeparture;
+    return !!comparableArrival && !!comparableDeparture &&
+      Date.parse(comparableArrival) < Date.parse(s.actualArrival!) &&
+      Date.parse(comparableDeparture) >= Date.parse(s.scheduledDeparture!);
+  });
   if (earlier.length || unresolved) {
     result.steps.push("The original train's " + raw + "-minute delay is not enough to establish the passenger's delay; check the alternatives and journey taken.");
     return finish("NEEDS_REVIEW", "a potentially earlier or unresolved alternative exists. Confirm the journey actually made before using the original train's delay.");

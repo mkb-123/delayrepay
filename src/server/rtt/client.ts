@@ -8,7 +8,7 @@ export class RttError extends Error {
 export class RttClient {
   private token: string | null = null;
   private expires = 0;
-  constructor(private readonly env: { RTT_ACCESS_TOKEN?: string; RTT_REFRESH_TOKEN?: string; RTT_API_VERSION?: string } = process.env,
+  constructor(private readonly env: NodeJS.ProcessEnv = process.env,
     private readonly request: typeof fetch = fetch) {}
   private async call(path: string, token: string): Promise<Response> {
     try {

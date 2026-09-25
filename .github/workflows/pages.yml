@@ -1,0 +1,89 @@
+name: Collect rail data and publish Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      service_date:
+        description: "Optional backfill weekday (YYYY-MM-DD), subject to RTT retention"
+        required: false
+        type: string
+  schedule:
+    # UTC; covers both GMT and BST. GitHub may delay or skip scheduled jobs.
+    - cron: "7,27,47 4-22 * * 1-5"
+    - cron: "17 1 * * 2-6"
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: rail-data-and-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - name: Open durable data branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin rail-data; then
+            git fetch origin rail-data
+            git worktree add --detach data-store FETCH_HEAD
+          else
+            git worktree add --detach data-store HEAD
+            git -C data-store switch --orphan rail-data
+          fi
+      - name: Collect from RTT
+        id: collect
+        continue-on-error: true
+        env:
+          RTT_ACCESS_TOKEN: ${{ secrets.RTT_ACCESS_TOKEN }}
+          RTT_REFRESH_TOKEN: ${{ secrets.RTT_REFRESH_TOKEN }}
+          RTT_API_VERSION: "2026-07-25"
+          INGEST_DATE: ${{ inputs.service_date }}
+        run: pnpm ingest
+      - name: Retain evidence
+        if: always()
+        shell: bash
+        run: |
+          if [ -f data-store/archive.json ]; then
+            git -C data-store add archive.json
+            if [ -d data-store/observations ]; then git -C data-store add observations; fi
+            if [ -f data-store/runs.jsonl ]; then git -C data-store add runs.jsonl; fi
+            if ! git -C data-store diff --cached --quiet; then
+              git -C data-store commit -m "Update RTT observations and assessments"
+              git -C data-store push origin HEAD:rail-data
+            fi
+          fi
+      - uses: actions/configure-pages@v5
+        id: pages
+      - name: Build static dashboard
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: pnpm build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+      - uses: actions/deploy-pages@v4
+        id: deployment
+      - name: Report collection failure
+        if: steps.collect.outcome == 'failure'
+        run: |
+          echo "::error::Rail collection failed. The dashboard was published with retained evidence and its collection status."
+          exit 1
