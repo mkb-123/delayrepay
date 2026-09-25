@@ -28,13 +28,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: pnpm
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - name: Open durable data branch
@@ -80,7 +80,7 @@ jobs:
         id: pages
       - name: Build static dashboard
         env:
-          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path || '/delayrepay' }}
         run: pnpm build
       - name: Update gh-pages branch fallback
         shell: bash
