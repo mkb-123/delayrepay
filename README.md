@@ -33,12 +33,12 @@ Create a local environment file from the example:
 Copy-Item .env.example .env
 ```
 
-Set one of the RTT credentials in `.env`:
+For local collection, put one RTT token in `.env`:
 
 - `RTT_ACCESS_TOKEN`
 - `RTT_REFRESH_TOKEN`
 
-Do not commit `.env`. Credentials are used only by server-side collection scripts and GitHub Actions.
+The `.env` file is ignored by Git. The static dashboard does not read RTT tokens; local tokens are used only by the collection script.
 
 Run checks:
 
@@ -77,7 +77,7 @@ pnpm publish:data
 
 ## GitHub Pages Deployment
 
-Add repository secrets:
+For scheduled collection on GitHub, add one repository secret:
 
 - `RTT_ACCESS_TOKEN` or `RTT_REFRESH_TOKEN`
 
