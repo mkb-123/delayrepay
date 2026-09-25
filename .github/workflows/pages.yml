@@ -82,6 +82,21 @@ jobs:
         env:
           NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: pnpm build
+      - name: Update gh-pages branch fallback
+        shell: bash
+        run: |
+          git worktree add --detach pages-out HEAD
+          cd pages-out
+          git switch --orphan gh-pages
+          git rm -rf .
+          cp -R ../out/. .
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish static dashboard"
+            git push --force origin HEAD:gh-pages
+          fi
+          cd ..
+          git worktree remove pages-out --force
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out
