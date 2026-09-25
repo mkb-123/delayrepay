@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+*.tsbuildinfo
+data-store/
+public/data/
+artifacts/
+.local-db/
+.test-db/
