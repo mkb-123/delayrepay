@@ -8,10 +8,18 @@ export class RttError extends Error {
 export class RttClient {
   private token: string | null = null;
   private expires = 0;
+  private nextRequestAt = 0;
   constructor(private readonly env: NodeJS.ProcessEnv = process.env,
     private readonly request: typeof fetch = fetch) {}
+  private async throttle(): Promise<void> {
+    const interval = Number(this.env.RTT_MIN_INTERVAL_MS || 1500);
+    const wait = Math.max(0, this.nextRequestAt - Date.now());
+    if (wait) await new Promise(resolve => setTimeout(resolve, wait));
+    this.nextRequestAt = Date.now() + interval;
+  }
   private async call(path: string, token: string): Promise<Response> {
     try {
+      await this.throttle();
       return await this.request(BASE + path, {
         headers: { Authorization: "Bearer " + token, Version: this.env.RTT_API_VERSION || "2026-07-25", Accept: "application/json" },
         signal: AbortSignal.timeout(15000), cache: "no-store", redirect: "error",
@@ -30,12 +38,20 @@ export class RttClient {
     this.token = value.token; this.expires = Date.parse(value.validUntil);
     return this.token;
   }
-  private async get(path: string, retry = true): Promise<unknown> {
+  private async get(path: string, retry = true, rateRetry = 2): Promise<unknown> {
     const res = await this.call(path, await this.access());
     if (res.status === 401 && retry && this.env.RTT_REFRESH_TOKEN && !this.env.RTT_ACCESS_TOKEN) {
       this.token = null; this.expires = 0; return this.get(path, false);
     }
-    if (res.status === 429) throw new RttError("RTT_RATE_LIMITED"); // Next scheduled run retries; do not hammer the API.
+    if (res.status === 429) {
+      if (rateRetry > 0) {
+        const retryAfter = Number(res.headers.get("retry-after"));
+        const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : Number(this.env.RTT_RATE_LIMIT_WAIT_MS || 10000);
+        await new Promise(resolve => setTimeout(resolve, wait));
+        return this.get(path, retry, rateRetry - 1);
+      }
+      throw new RttError("RTT_RATE_LIMITED");
+    }
     if (!res.ok) throw new RttError(res.status === 404 ? "RTT_SERVICE_NOT_FOUND" : "RTT_REQUEST_FAILED");
     if (res.status === 204) return { services: [] };
     try { return await res.json(); } catch { throw new RttError("RTT_INVALID_JSON"); }
