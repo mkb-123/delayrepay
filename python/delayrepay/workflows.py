@@ -237,7 +237,7 @@ def build_report_data(database: Database, service_date: str, action_only: bool, 
     for service in services:
         evaluation = assess(
             service, services, database.claimed_at(service["serviceId"]),
-            database.not_claimable_at(service["serviceId"]),
+            database.not_claimable_at(service["serviceId"]), database.superseded_by(service["serviceId"]),
         )
         if persist:
             database.save_assessment(service["serviceId"], assessed_at, evaluation)
@@ -422,9 +422,24 @@ def set_claim(root: Path, service_date: str, service_id: str, undo: bool) -> Non
             raise ValueError("Service was not found in SQLite history")
         if undo:
             database.set_claim(service_id, None)
+            database.clear_superseded_by(service_id)
         else:
             service = next(item for item in services if item["serviceId"] == service_id)
             if assess(service, services)["status"] not in {"POTENTIAL", "NEEDS_REVIEW"}:
                 raise ValueError("Only a potential claim or unresolved disruption can be marked as claimed")
             database.set_not_claimable(service_id, None)
+            database.clear_superseded_service(service_id)
             database.set_claim(service_id, _now())
+            superseded = []
+            for candidate in services:
+                if candidate["serviceId"] == service_id or candidate.get("direction") != service.get("direction"):
+                    continue
+                if database.claimed_at(candidate["serviceId"]):
+                    continue
+                evaluation = assess(
+                    candidate, services, None, database.not_claimable_at(candidate["serviceId"]),
+                    database.superseded_by(candidate["serviceId"]),
+                )
+                if evaluation["status"] in {"POTENTIAL", "NEEDS_REVIEW"}:
+                    superseded.append(candidate["serviceId"])
+            database.supersede_claims(superseded, service_id, _now())

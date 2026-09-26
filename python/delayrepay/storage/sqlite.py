@@ -82,6 +82,11 @@ class Database:
                 service_id TEXT PRIMARY KEY REFERENCES services(service_id) ON DELETE CASCADE,
                 marked_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS superseded_claims (
+                service_id TEXT PRIMARY KEY REFERENCES services(service_id) ON DELETE CASCADE,
+                claimed_by_service_id TEXT NOT NULL REFERENCES services(service_id) ON DELETE CASCADE,
+                marked_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         """)
         self.connection.execute("PRAGMA user_version=1")
@@ -228,3 +233,28 @@ class Database:
             }
             for row in rows
         }
+
+    def superseded_by(self, service_id: str) -> str | None:
+        row = self.connection.execute(
+            "SELECT claimed_by_service_id FROM superseded_claims WHERE service_id=?", (service_id,)
+        ).fetchone()
+        return row["claimed_by_service_id"] if row else None
+
+    def supersede_claims(self, service_ids: list[str], claimed_by_service_id: str, marked_at: str) -> None:
+        with self.connection:
+            for service_id in service_ids:
+                self.connection.execute("""
+                    INSERT INTO superseded_claims(service_id, claimed_by_service_id, marked_at) VALUES(?, ?, ?)
+                    ON CONFLICT(service_id) DO UPDATE SET
+                        claimed_by_service_id=excluded.claimed_by_service_id, marked_at=excluded.marked_at
+                """, (service_id, claimed_by_service_id, marked_at))
+
+    def clear_superseded_service(self, service_id: str) -> None:
+        with self.connection:
+            self.connection.execute("DELETE FROM superseded_claims WHERE service_id=?", (service_id,))
+
+    def clear_superseded_by(self, claimed_by_service_id: str) -> None:
+        with self.connection:
+            self.connection.execute(
+                "DELETE FROM superseded_claims WHERE claimed_by_service_id=?", (claimed_by_service_id,)
+            )

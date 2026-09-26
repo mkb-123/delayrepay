@@ -8,7 +8,7 @@ from ..ingestion.services import minutes_between
 
 def assess(
     service: dict[str, Any], all_services: list[dict[str, Any]], claimed_at: str | None = None,
-    not_claimable_at: str | None = None,
+    not_claimable_at: str | None = None, superseded_by: str | None = None,
 ) -> dict[str, Any]:
     rule = RULES.get(service.get("operatorCode"))
     raw = service.get("rawDelayMinutes")
@@ -41,12 +41,16 @@ def assess(
         "claimUrl": rule["claimUrl"] if rule else None,
         "claimedAt": claimed_at,
         "notClaimableAt": not_claimable_at,
+        "supersededBy": superseded_by,
     }
     if claimed_at:
         base.update(status="CLAIMED", explanation="Previously acknowledged as claimed.")
         return base
     if not_claimable_at:
         base.update(status="NO_CLAIM", explanation="Marked as not claimable by you.")
+        return base
+    if superseded_by:
+        base.update(status="NO_CLAIM", explanation="Not required because another train for this date and direction was marked as claimed.")
         return base
     if not rule:
         base["explanation"] = "This operator has no verified rule in the tracker."
