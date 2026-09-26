@@ -270,28 +270,54 @@ def build_report_data(database: Database, service_date: str, action_only: bool, 
         },
         "services": all_rows,
     }
-    report_data["recommendations"] = build_recommendations(report_data)
+    report_data["recommendations"] = build_recommendations(report_data, database.claimed_time_preferences())
     return report_data
 
 
-def build_recommendations(report_data: dict[str, Any]) -> list[dict[str, Any]]:
+def _delay_band(minutes: int) -> tuple[int, str]:
+    if minutes >= 90:
+        return 4, "90+"
+    if minutes >= 60:
+        return 3, "60–89"
+    if minutes >= 30:
+        return 2, "30–59"
+    if minutes >= 15:
+        return 1, "15–29"
+    return 0, "Unknown"
+
+
+def build_recommendations(
+    report_data: dict[str, Any], claimed_preferences: dict[tuple[str, str], dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     services = report_data.get("services", [])
+    claimed_preferences = claimed_preferences or {}
     recommendations = []
     for direction in WINDOWS:
         rows = [row for row in services if row.get("direction") == direction]
         if not rows:
             continue
         potential = [(row, row["assessment"]) for row in rows if row["assessment"]["status"] in {"POTENTIAL", "CLAIMED"}]
-        potential.sort(key=lambda item: (-(item[1].get("effectiveDelayMinutes") or item[0].get("rawDelayMinutes") or 0), item[0].get("scheduledDeparture") or ""))
+        def recommendation_rank(item: tuple[dict[str, Any], dict[str, Any]]) -> tuple[Any, ...]:
+            row, evaluation = item
+            delay = evaluation.get("effectiveDelayMinutes") or row.get("rawDelayMinutes") or 0
+            train_time = (row.get("scheduledDeparture") or "")[11:16]
+            preference = claimed_preferences.get((direction, train_time), {})
+            return (-_delay_band(delay)[0], -int(bool(preference)), -preference.get("count", 0), -delay, train_time)
+
+        potential.sort(key=recommendation_rank)
         selected = potential[0] if potential else None
         claimed_at = selected[0]["assessment"].get("claimedAt") if selected else None
         if selected and (claimed_at or report_data.get("sourceComplete", False)):
             row, evaluation = selected
+            delay = evaluation.get("effectiveDelayMinutes") or row.get("rawDelayMinutes") or 0
+            train_time = (row.get("scheduledDeparture") or "")[11:16]
+            preferred_time = bool(claimed_preferences.get((direction, train_time)))
             recommendations.append({
                 "direction": direction, "status": "CLAIMED" if claimed_at else "POTENTIAL",
                 "serviceId": row["serviceId"], "scheduledDeparture": row.get("scheduledDeparture"),
-                "operatorName": row["operatorName"], "effectiveDelayMinutes": evaluation["effectiveDelayMinutes"],
-                "explanation": "Longest confidently claimable delay for this direction.",
+                "operatorName": row["operatorName"], "effectiveDelayMinutes": delay,
+                "delayBand": _delay_band(delay)[1], "preferredClaimedTime": preferred_time,
+                "explanation": "Highest delay band; preferred a train time claimed before." if preferred_time else "Highest delay band; longest delay used as the tie-breaker.",
                 "claimUrl": evaluation.get("claimUrl"), "claimedAt": claimed_at,
             })
             continue

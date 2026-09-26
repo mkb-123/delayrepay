@@ -212,3 +212,19 @@ class Database:
                     INSERT INTO not_claimable(service_id, marked_at) VALUES(?, ?)
                     ON CONFLICT(service_id) DO UPDATE SET marked_at=excluded.marked_at
                 """, (service_id, marked_at))
+
+    def claimed_time_preferences(self) -> dict[tuple[str, str], dict[str, Any]]:
+        rows = self.connection.execute("""
+            SELECT s.direction, substr(s.scheduled_departure, 12, 5) AS train_time,
+                   count(*) AS claim_count, max(c.claimed_at) AS last_claimed_at
+            FROM claims c
+            JOIN services s ON s.service_id = c.service_id
+            WHERE s.scheduled_departure IS NOT NULL
+            GROUP BY s.direction, train_time
+        """).fetchall()
+        return {
+            (row["direction"], row["train_time"]): {
+                "count": row["claim_count"], "lastClaimedAt": row["last_claimed_at"],
+            }
+            for row in rows
+        }
