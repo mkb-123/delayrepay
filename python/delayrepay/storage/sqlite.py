@@ -78,6 +78,10 @@ class Database:
                 service_date TEXT PRIMARY KEY,
                 acknowledged_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS not_claimable (
+                service_id TEXT PRIMARY KEY REFERENCES services(service_id) ON DELETE CASCADE,
+                marked_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         """)
         self.connection.execute("PRAGMA user_version=1")
@@ -193,3 +197,18 @@ class Database:
                     INSERT INTO day_acknowledgements(service_date, acknowledged_at) VALUES(?, ?)
                     ON CONFLICT(service_date) DO UPDATE SET acknowledged_at=excluded.acknowledged_at
                 """, (service_date, acknowledged_at))
+
+    def not_claimable_at(self, service_id: str) -> str | None:
+        row = self.connection.execute("SELECT marked_at FROM not_claimable WHERE service_id=?", (service_id,)).fetchone()
+        return row["marked_at"] if row else None
+
+    def set_not_claimable(self, service_id: str, marked_at: str | None) -> None:
+        with self.connection:
+            if marked_at is None:
+                self.connection.execute("DELETE FROM not_claimable WHERE service_id=?", (service_id,))
+            else:
+                self.connection.execute("DELETE FROM claims WHERE service_id=?", (service_id,))
+                self.connection.execute("""
+                    INSERT INTO not_claimable(service_id, marked_at) VALUES(?, ?)
+                    ON CONFLICT(service_id) DO UPDATE SET marked_at=excluded.marked_at
+                """, (service_id, marked_at))

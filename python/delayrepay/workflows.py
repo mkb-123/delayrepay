@@ -235,7 +235,10 @@ def build_report_data(database: Database, service_date: str, action_only: bool, 
     all_rows = []
     assessed_at = _now()
     for service in services:
-        evaluation = assess(service, services, database.claimed_at(service["serviceId"]))
+        evaluation = assess(
+            service, services, database.claimed_at(service["serviceId"]),
+            database.not_claimable_at(service["serviceId"]),
+        )
         if persist:
             database.save_assessment(service["serviceId"], assessed_at, evaluation)
         all_rows.append({**service, "assessment": evaluation})
@@ -278,9 +281,8 @@ def build_recommendations(report_data: dict[str, Any]) -> list[dict[str, Any]]:
         rows = [row for row in services if row.get("direction") == direction]
         if not rows:
             continue
-        underlying = [(row, assess(row, rows, None)) for row in rows]
-        potential = [(row, evaluation) for row, evaluation in underlying if evaluation["status"] == "POTENTIAL"]
-        potential.sort(key=lambda item: (-(item[1].get("effectiveDelayMinutes") or 0), item[0].get("scheduledDeparture") or ""))
+        potential = [(row, row["assessment"]) for row in rows if row["assessment"]["status"] in {"POTENTIAL", "CLAIMED"}]
+        potential.sort(key=lambda item: (-(item[1].get("effectiveDelayMinutes") or item[0].get("rawDelayMinutes") or 0), item[0].get("scheduledDeparture") or ""))
         selected = potential[0] if potential else None
         claimed_at = selected[0]["assessment"].get("claimedAt") if selected else None
         if selected and (claimed_at or report_data.get("sourceComplete", False)):
@@ -396,6 +398,7 @@ def set_claim(root: Path, service_date: str, service_id: str, undo: bool) -> Non
             database.set_claim(service_id, None)
         else:
             service = next(item for item in services if item["serviceId"] == service_id)
-            if assess(service, services)["status"] != "POTENTIAL":
-                raise ValueError("Only a potential claim can be marked as claimed")
+            if assess(service, services)["status"] not in {"POTENTIAL", "NEEDS_REVIEW"}:
+                raise ValueError("Only a potential claim or unresolved disruption can be marked as claimed")
+            database.set_not_claimable(service_id, None)
             database.set_claim(service_id, _now())

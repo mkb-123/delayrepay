@@ -37,7 +37,7 @@ function renderRecommendations() {
         html += `<div class="recommend-row no-action"><strong>${route}</strong><span>No claim</span></div>`;
         continue;
       }
-      const label = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "✓ Claimed" : "Review";
+      const label = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "✓ Claimed" : "Decide";
       const detail = item.effectiveDelayMinutes == null ? label : `${item.effectiveDelayMinutes} min · ${label}`;
       html += `<button class="recommend-row ${item.status}" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}</span></button>`;
     }
@@ -64,7 +64,7 @@ function render() {
   const parts = [delay === null ? "All trains" : `${delay}+ min or cancelled`];
   if (direction) parts.push(direction === "MORNING" ? "Morning" : "Evening");
   if (operator) parts.push(operator);
-  if (status) parts.push({POTENTIAL: "Potential", NEEDS_REVIEW: "Review", CLAIMED: "Claimed", NO_CLAIM: "No claim"}[status]);
+  if (status) parts.push({POTENTIAL: "Potential", NEEDS_REVIEW: "Decide", CLAIMED: "Claimed", NO_CLAIM: "No claim"}[status]);
   $("filterSummary").textContent = parts.join(" · ");
   const dates = [...data.days].reverse().map(day => day.date);
   const all = data.days.flatMap(day => day.services).filter(s =>
@@ -109,11 +109,13 @@ function showService(encodedId) {
   const service = data.days.flatMap(day => day.services).find(item => item.serviceId === id);
   if (!service) return;
   const a = service.assessment;
-  const labels = {POTENTIAL: "Potential claim", NEEDS_REVIEW: "Needs review", CLAIMED: "✓ Claimed", NO_CLAIM: "No claim"};
+  const labels = {POTENTIAL: "Potential claim", NEEDS_REVIEW: "Decision needed", CLAIMED: "✓ Claimed", NO_CLAIM: "No claim"};
   let actions = "";
   if (a.status === "POTENTIAL") actions += `<button onclick="claim('${encodedId}', false)">Mark as claimed</button>`;
+  if (a.status === "NEEDS_REVIEW") actions += `<button onclick="claim('${encodedId}', false)">Mark as claimed</button><button class="secondary" onclick="notClaimable('${encodedId}', false)">Not claimable</button>`;
   if (a.status === "CLAIMED") actions += `<button class="secondary" onclick="claim('${encodedId}', true)">Undo</button>`;
-  if (a.claimUrl && ["POTENTIAL", "CLAIMED"].includes(a.status)) actions += `<a href="${esc(a.claimUrl)}" target="_blank" rel="noopener">Open claim page →</a>`;
+  if (a.notClaimableAt) actions += `<button class="secondary" onclick="notClaimable('${encodedId}', true)">Undo not claimable</button>`;
+  if (a.claimUrl && ["POTENTIAL", "NEEDS_REVIEW", "CLAIMED"].includes(a.status)) actions += `<a href="${esc(a.claimUrl)}" target="_blank" rel="noopener">Open claim page →</a>`;
   $("serviceDetail").innerHTML = `<p class="eyebrow">${esc(dayLabel(service.serviceDate))} · ${service.origin} → ${service.destination}</p><h2>${clock(service.scheduledDeparture)} · ${esc(service.operatorName)}</h2><span class="status ${a.status}">${labels[a.status]}</span><p class="reason">${esc(a.explanation)}</p><dl class="facts"><dt>Scheduled</dt><dd>${clock(service.scheduledDeparture)} → ${clock(service.scheduledArrival)}</dd><dt>Actual</dt><dd>${clock(service.actualDeparture)} → ${clock(service.actualArrival)}</dd><dt>Raw delay</dt><dd>${service.cancelled ? "Cancelled" : service.rawDelayMinutes == null ? "Unknown" : `${service.rawDelayMinutes} minutes`}</dd><dt>Effective delay</dt><dd>${a.effectiveDelayMinutes == null ? "Not determined" : `${a.effectiveDelayMinutes} minutes`}</dd><dt>Rule</dt><dd>${esc(a.ruleVersion)}</dd></dl><div class="actions">${actions}</div>${a.ruleSource ? `<p><a href="${esc(a.ruleSource)}" target="_blank" rel="noopener">Official rule source →</a></p>` : ""}`;
   $("serviceDialog").showModal();
 }
@@ -122,6 +124,13 @@ async function claim(encodedId, undo) {
   const response = await fetch(`/api/services/${encodedId}/claim`, {method: undo ? "DELETE" : "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
   const result = await response.json();
   showNotice(response.ok ? result.message || "Updated." : result.error, !response.ok);
+  if (response.ok) { $("serviceDialog").close(); await load(); }
+}
+
+async function notClaimable(encodedId, undo) {
+  const response = await fetch(`/api/services/${encodedId}/not-claimable`, {method: undo ? "DELETE" : "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
+  const result = await response.json();
+  showNotice(response.ok ? (undo ? "Decision restored." : "Marked as not claimable.") : result.error, !response.ok);
   if (response.ok) { $("serviceDialog").close(); await load(); }
 }
 

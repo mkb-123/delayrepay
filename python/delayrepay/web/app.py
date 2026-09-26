@@ -215,6 +215,24 @@ def create_app(root: Path | str | None = None) -> Flask:
         set_claim(data_root, service["serviceDate"], service_id, True)
         return jsonify({"status": "RESTORED"})
 
+    @app.post("/api/services/<path:service_id>/not-claimable")
+    def mark_not_claimable(service_id: str):
+        _require_same_origin()
+        with Database(data_root) as database:
+            if not database.service_by_id(service_id):
+                return jsonify({"error": "Service not found"}), 404
+            database.set_not_claimable(service_id, _now())
+        return jsonify({"status": "NO_CLAIM"})
+
+    @app.delete("/api/services/<path:service_id>/not-claimable")
+    def undo_not_claimable(service_id: str):
+        _require_same_origin()
+        with Database(data_root) as database:
+            if not database.service_by_id(service_id):
+                return jsonify({"error": "Service not found"}), 404
+            database.set_not_claimable(service_id, None)
+        return jsonify({"status": "RESTORED"})
+
     @app.post("/api/days/<service_date>/acknowledgement")
     def acknowledge_day(service_date: str):
         _require_same_origin()

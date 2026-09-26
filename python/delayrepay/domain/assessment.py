@@ -6,7 +6,10 @@ from .rules import RULES
 from ..ingestion.services import minutes_between
 
 
-def assess(service: dict[str, Any], all_services: list[dict[str, Any]], claimed_at: str | None = None) -> dict[str, Any]:
+def assess(
+    service: dict[str, Any], all_services: list[dict[str, Any]], claimed_at: str | None = None,
+    not_claimable_at: str | None = None,
+) -> dict[str, Any]:
     rule = RULES.get(service.get("operatorCode"))
     raw = service.get("rawDelayMinutes")
     alternatives = []
@@ -37,9 +40,13 @@ def assess(service: dict[str, Any], all_services: list[dict[str, Any]], claimed_
         "ruleVerifiedAt": rule["verifiedAt"] if rule else None,
         "claimUrl": rule["claimUrl"] if rule else None,
         "claimedAt": claimed_at,
+        "notClaimableAt": not_claimable_at,
     }
     if claimed_at:
         base.update(status="CLAIMED", explanation="Previously acknowledged as claimed.")
+        return base
+    if not_claimable_at:
+        base.update(status="NO_CLAIM", explanation="Marked as not claimable by you.")
         return base
     if not rule:
         base["explanation"] = "This operator has no verified rule in the tracker."
