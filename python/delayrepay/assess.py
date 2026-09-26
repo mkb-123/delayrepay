@@ -28,8 +28,10 @@ def assess(service: dict[str, Any], all_services: list[dict[str, Any]], claimed_
         "status": "NEEDS_REVIEW", "effectiveDelayMinutes": None, "rawDelayMinutes": raw,
         "explanation": "", "alternativesConsidered": alternatives,
         "ruleVersion": rule["ruleVersion"] if rule else "UNSUPPORTED",
+        "ruleOperatorName": rule["operatorName"] if rule else None,
         "ruleSource": rule["sourceUrl"] if rule else None,
         "ruleVerifiedAt": rule["verifiedAt"] if rule else None,
+        "claimUrl": rule["claimUrl"] if rule else None,
         "claimedAt": claimed_at,
     }
     if claimed_at:

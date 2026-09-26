@@ -1,65 +1,63 @@
 # MKC ↔ EUS Delay Repay
 
-A private, local Python tool that tracks weekday trains between Milton Keynes Central and London Euston and produces a short Delay Repay briefing.
+Local Python tool for monitoring weekday trains between Milton Keynes Central and London Euston and identifying possible Delay Repay claims.
 
-It separates three jobs so routine collection stays cheap:
+It monitors:
 
-1. `discover` finds the relevant timetable once and saves a service catalogue.
-2. `collect` requests only those known services for a date.
-3. `report` reads stored data and makes no RTT calls.
+- MKC → EUS departures from 06:00 to 08:00
+- EUS → MKC departures from 16:30 to 18:00
+- Direct journeys scheduled to take no more than 60 minutes
 
-The supported application is the Python CLI. The earlier Next.js viewer and its inactive GitHub Pages workflows are archived under `legacy/nextjs/` for reference.
+The active application is the Python CLI. The original Next.js implementation and its data are retained under `legacy/`.
 
-## Run it
+## Quick start
 
-The quickest option is the registered Windows task. Open PowerShell and run:
+Run the registered Windows task from PowerShell:
 
 ```powershell
 Start-ScheduledTask -TaskName "MKC EUS Delay Repay"
 ```
 
-Wait about a minute, then read the latest output:
+The task runs automatically at 19:00 Monday–Friday. It collects the latest weekday and creates a 10-day action report using plain PowerShell, WSL, and Python. No AI model is involved.
+
+Check progress and output:
 
 ```powershell
 Get-Content C:\Users\mitzb\code\delayrepay\data-store\scheduled-task.log -Tail 50
 Get-Content C:\Users\mitzb\code\delayrepay\data-store\output\latest.md
 ```
 
-The task also runs automatically at 19:00 every Monday–Friday. It uses WSL and plain Python; no AI model is involved.
+The structured version is `data-store/output/latest.json`.
 
-To run a specific date manually in WSL:
+## Setup in WSL
 
-```bash
-cd /mnt/c/Users/mitzb/code/delayrepay
-export PYTHONPATH=python
-python3 -m delayrepay collect --date 2026-09-28
-python3 -m delayrepay report --date 2026-09-28
-python3 -m delayrepay report --date 2026-09-28 --lookback-days 14 --action-only
-```
-
-The current report is saved as `data-store/output/latest.json` and `latest.md`. Collection requires that weekday to exist in `data-store/service-catalogue.json` and that `.env` contains a valid RTT token.
-
-Every command prints timestamped progress to the terminal. Discovery shows lineup and candidate progress, collection shows each catalogue service, and reporting shows the number of assessments and output path. The Windows task captures the same output in `data-store/scheduled-task.log`. Authentication tokens are never included in logs.
-
-## Requirements
+Requirements:
 
 - Python 3.11 or newer
-- A current Realtime Trains API access or refresh token
-
-From WSL, create and activate a virtual environment, then install the local package:
+- A Realtime Trains API access or refresh token
 
 ```bash
 cd /mnt/c/Users/mitzb/code/delayrepay
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
+cp .env.example .env
 ```
 
-Copy `.env.example` to `.env` and add either `RTT_ACCESS_TOKEN` or `RTT_REFRESH_TOKEN`. `.env` is ignored by Git. Credentials are never written to stored data or logs.
+Set either `RTT_ACCESS_TOKEN` or `RTT_REFRESH_TOKEN` in `.env`. The file is ignored by Git, and credentials are never stored or logged.
 
-## 1. Discover relevant trains
+If you do not install the package, run commands from the repository with:
 
-Run this manually for a representative date for each weekday. Discovery searches both station lineups and checks service details. Running it again for the same weekday replaces that weekday’s catalogue entries.
+```bash
+export PYTHONPATH=python
+python3 -m delayrepay --help
+```
+
+## Workflow
+
+### 1. Discover the timetable
+
+Discovery is an occasional catalogue refresh. It is the expensive step and should not be scheduled.
 
 ```bash
 python -m delayrepay discover --date 2026-09-28
@@ -67,69 +65,72 @@ python -m delayrepay discover --date 2026-09-28 --direction evening
 python -m delayrepay discover --date 2026-10-02 --lookback-days 14
 ```
 
-Repeat for Tuesday through Friday if their timetables differ. Direction-scoped discovery replaces only that weekday and direction, preserving the other half of the catalogue. Results are saved to `data-store/service-catalogue.json` and a readable `data-store/service-catalogue.md`. Only direct passenger services in the configured windows and scheduled to take no more than 60 minutes are retained.
+Direction-scoped discovery preserves the other direction. A lookback discovers only the latest occurrence of each weekday, with at most five timetable snapshots. Relevant services are saved in `data-store/service-catalogue.json`; `service-catalogue.md` is its readable view.
 
-To bootstrap a weekday from retained RTT observations without making any API calls:
+Cached discovery makes no RTT calls:
 
 ```bash
 python -m delayrepay discover --date 2026-09-25 --from-cache
 ```
 
-## 2. Collect a day
+### 2. Collect running data
 
-Preview the exact RTT detail calls without using the API:
+Preview calls without contacting RTT:
 
 ```bash
-python -m delayrepay collect --date 2026-09-28 --dry-run
-python -m delayrepay collect --date 2026-10-02 --lookback-days 14 --dry-run
+python -m delayrepay collect --date 2026-10-02 --lookback-days 10 --dry-run
 ```
 
-Collect the running data:
+Collect one day or a range:
 
 ```bash
-python -m delayrepay collect --date 2026-09-28
-python -m delayrepay collect --date 2026-10-02 --lookback-days 14
+python -m delayrepay collect --date 2026-10-02
+python -m delayrepay collect --date 2026-10-02 --lookback-days 10
 ```
 
-Collection uses the saved catalogue and makes one detail request per known train. It does not rediscover the timetable. Services are upserted into `data-store/delayrepay.sqlite`, so rerunning a date updates existing journeys rather than creating duplicates.
+Collection uses the catalogue and upserts services into `data-store/delayrepay.sqlite`. Missing catalogue weekdays are skipped rather than recorded as empty successful runs.
 
-## 3. Generate a briefing
+### 3. Generate output
 
 ```bash
-python -m delayrepay report --date 2026-09-28
-python -m delayrepay report --date 2026-09-28 --action-only
-python -m delayrepay report --date 2026-09-28 --lookback-days 14
+python -m delayrepay report --date 2026-10-02
+python -m delayrepay report --date 2026-10-02 --lookback-days 10 --action-only
 python -m delayrepay report-week --week-start 2026-09-28
 ```
 
-Reporting queries SQLite and overwrites `data-store/output/latest.json` and `latest.md`. The structured JSON is written first and contains the services, calculations, alternatives, explanations, rule references, and summary counts. Markdown is then rendered from that saved JSON. This lets you build another visualisation directly from the report JSON without rerunning collection. `--lookback-days 14` combines stored dates in the 14 calendar days ending on `--date`; if `--date` is omitted, it ends today. It makes no RTT calls.
+Reporting makes no RTT calls. It queries SQLite, writes `data-store/output/latest.json`, then renders `latest.md` from that JSON. Each run replaces the previous output instead of accumulating duplicate report files.
 
-`--lookback-days` is supported by all three stages, with `--lookup-days` accepted as an alias. Discovery uses only the latest occurrence of each weekday in the range, so a 14-day lookup performs at most five timetable snapshots. Collection processes every weekday in the range. Reporting combines every stored day in the range.
+`--lookback-days` and its alias `--lookup-days` work with discovery, collection, and reporting.
 
-## Claim acknowledgement
+## Claims
 
-Copy a `serviceId` from `data-store/output/latest.json` and run:
+Copy a `serviceId` from `latest.json`:
 
 ```bash
-python -m delayrepay claim --date 2026-09-28 --service "SERVICE_ID"
-python -m delayrepay claim --date 2026-09-28 --service "SERVICE_ID" --undo
+python -m delayrepay claim --date 2026-10-02 --service "SERVICE_ID"
+python -m delayrepay claim --date 2026-10-02 --service "SERVICE_ID" --undo
 ```
 
-Acknowledgements persist in SQLite independently of later service updates and disappear from the outstanding count on the next report. Marking a journey as claimed does not submit a claim to an operator.
+Claim acknowledgement is stored independently in SQLite and survives service refreshes. It records only that you acknowledged the item; it does not submit a claim.
 
-## Stored data and rules
+## Storage
 
-The service catalogue remains inspectable JSON. Operational services, collection runs, assessments, and claims live in `data-store/delayrepay.sqlite`. The database is tracked in Git as a private-repository backup; SQLite WAL and shared-memory files remain ignored. Generated `latest.json` and `latest.md` are replaceable views and remain ignored. Previous JSON operational data and the original TypeScript data are retained under `legacy/`.
+- `data-store/service-catalogue.json`: discovered timetable configuration
+- `data-store/delayrepay.sqlite`: services, collection runs, assessments, and claims
+- `data-store/output/latest.json`: complete structured report for visualisation
+- `data-store/output/latest.md`: concise human-readable report
+- `data-store/scheduled-task.log`: Windows task output
 
-The current Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) rules live in `python/delayrepay/rules.py`, including official sources and verification dates. Ambiguous cancellations, missing arrivals, unsupported operators, and journeys with a potentially earlier alternative are classified as `Needs review`.
+The SQLite database and catalogue are tracked in Git. SQLite WAL and shared-memory files, generated output, logs, and `.env` are ignored. Scheduled updates modify the local database; updating GitHub still requires a commit and push.
 
-## Scheduling
+The current Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) policies are defined in `python/delayrepay/rules.py` with official source URLs and verification dates. Ambiguous evidence is classified as `Needs review`.
 
-The repository includes `scripts/daily-brief.ps1` for Windows Task Scheduler. The local task runs through WSL at 19:00 every weekday, collects the current day once, then produces an action-only report covering the last 10 calendar days. It overwrites `data-store/output/latest.json` and `latest.md`, and appends progress to `data-store/scheduled-task.log`. Do not schedule `discover`; rerun it only when you want to refresh the catalogue.
+## Validation
 
-Tests are intentionally deferred while the catalogue and report shapes are being finalised. The current no-network check is:
+Tests remain deferred while the real workflow is being finalised. The current no-network checks are:
 
 ```bash
 python -m compileall -q python
 python -m delayrepay --help
+python -m delayrepay collect --date 2026-10-02 --dry-run
 ```

@@ -37,6 +37,12 @@ class Database:
     def close(self) -> None:
         self.connection.close()
 
+    def __enter__(self) -> "Database":
+        return self
+
+    def __exit__(self, _exception_type: object, _exception: object, _traceback: object) -> None:
+        self.close()
+
     def _migrate(self) -> None:
         self.connection.executescript("""
             CREATE TABLE IF NOT EXISTS services (

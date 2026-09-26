@@ -88,8 +88,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.lookback_days:
                 print(report_lookback(root, args.date or date.today().isoformat(), args.lookback_days, args.action_only))
             elif args.date:
-                text, _ = generate_report(root, args.date, args.action_only)
-                print(text)
+                print(generate_report(root, args.date, args.action_only))
             else:
                 raise ValueError("--date is required unless --lookback-days is supplied")
         elif args.command == "catalogue":

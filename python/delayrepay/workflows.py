@@ -137,21 +137,19 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
             LOGGER.warning("Could not collect %s: %s", unique, error)
             errors.append({"rttServiceId": unique, "error": str(error)})
     value = {"version": 1, "date": service_date, "collectedAt": _now(), "complete": not errors, "services": services, "errors": errors}
-    database = Database(root)
-    database.save_collection(value)
-    database.close()
+    with Database(root) as database:
+        database.save_collection(value)
     LOGGER.info("Saved %d services for %s with %d errors", len(services), service_date, len(errors))
     return value
 
 
-def generate_report(root: Path, service_date: str, action_only: bool = False) -> tuple[str, list[dict[str, Any]]]:
-    database = Database(root)
-    report_data, rows = build_report_data(database, service_date, action_only)
-    database.close()
-    return write_latest_report(root, report_data), rows
+def generate_report(root: Path, service_date: str, action_only: bool = False) -> str:
+    with Database(root) as database:
+        report_data = build_report_data(database, service_date, action_only)
+    return write_latest_report(root, report_data)
 
 
-def build_report_data(database: Database, service_date: str, action_only: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def build_report_data(database: Database, service_date: str, action_only: bool) -> dict[str, Any]:
     services = database.services_for_date(service_date)
     if not services:
         raise ValueError(f"No stored services for {service_date}. Run collect first.")
@@ -189,7 +187,7 @@ def build_report_data(database: Database, service_date: str, action_only: bool) 
         },
         "services": all_rows,
     }
-    return report_data, rows
+    return report_data
 
 
 def write_latest_report(root: Path, report_data: dict[str, Any]) -> str:
@@ -238,14 +236,13 @@ def render_report_markdown(report_data: dict[str, Any]) -> str:
 def report_week(root: Path, week_start: str, action_only: bool = False) -> str:
     start = date.fromisoformat(week_start)
     end = start + timedelta(days=4)
-    database = Database(root)
     reports = []
-    for current in database.stored_dates(start.isoformat(), end.isoformat()):
-        report_data, _ = build_report_data(database, current, action_only)
-        reports.append(report_data)
-    database.close()
+    with Database(root) as database:
+        for current in database.stored_dates(start.isoformat(), end.isoformat()):
+            report_data = build_report_data(database, current, action_only)
+            reports.append(report_data)
     if not reports:
-        raise ValueError("No stored daily data in that week")
+        raise ValueError("No stored services in that week")
     combined = {"version": 1, "generatedAt": _now(), "type": "week", "weekStart": week_start, "actionOnly": action_only, "days": reports}
     return write_latest_report(root, combined)
 
@@ -256,14 +253,13 @@ def report_lookback(root: Path, end_date: str, days: int, action_only: bool = Fa
     end = date.fromisoformat(end_date)
     start = end - timedelta(days=days - 1)
     LOGGER.info("Building %d-day report from %s to %s", days, start, end)
-    database = Database(root)
     reports = []
-    for service_date in database.stored_dates(start.isoformat(), end.isoformat()):
-        report_data, _ = build_report_data(database, service_date, action_only)
-        reports.append(report_data)
-    database.close()
+    with Database(root) as database:
+        for service_date in database.stored_dates(start.isoformat(), end.isoformat()):
+            report_data = build_report_data(database, service_date, action_only)
+            reports.append(report_data)
     if not reports:
-        raise ValueError(f"No stored daily data from {start.isoformat()} to {end.isoformat()}")
+        raise ValueError(f"No stored services from {start.isoformat()} to {end.isoformat()}")
     combined = {
         "version": 1, "generatedAt": _now(), "type": "lookback", "daysRequested": days,
         "startDate": start.isoformat(), "endDate": end_date, "actionOnly": action_only, "days": reports,
@@ -273,17 +269,14 @@ def report_lookback(root: Path, end_date: str, days: int, action_only: bool = Fa
 
 
 def set_claim(root: Path, service_date: str, service_id: str, undo: bool) -> None:
-    database = Database(root)
-    services = database.services_for_date(service_date)
-    if service_id not in {item["serviceId"] for item in services}:
-        database.close()
-        raise ValueError("Service was not found in stored daily data")
-    if undo:
-        database.set_claim(service_id, None)
-    else:
-        service = next(item for item in services if item["serviceId"] == service_id)
-        if assess(service, services)["status"] != "POTENTIAL":
-            database.close()
-            raise ValueError("Only a potential claim can be marked as claimed")
-        database.set_claim(service_id, _now())
-    database.close()
+    with Database(root) as database:
+        services = database.services_for_date(service_date)
+        if service_id not in {item["serviceId"] for item in services}:
+            raise ValueError("Service was not found in SQLite history")
+        if undo:
+            database.set_claim(service_id, None)
+        else:
+            service = next(item for item in services if item["serviceId"] == service_id)
+            if assess(service, services)["status"] != "POTENTIAL":
+                raise ValueError("Only a potential claim can be marked as claimed")
+            database.set_claim(service_id, _now())
