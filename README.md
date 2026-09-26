@@ -2,7 +2,7 @@
 
 A private Python tracker for weekday journeys between Milton Keynes Central and London Euston. It collects live running data from Realtime Trains, keeps the history in SQLite, explains possible Delay Repay eligibility, and provides a mobile dashboard on your home network.
 
-It monitors direct services taking no more than 60 minutes: MKC → EUS from 06:00–08:00 and EUS → MKC from 16:30–18:00.
+It monitors direct services taking no more than 60 minutes: MKC → EUS from 06:00–08:00 and EUS → MKC from 16:30–18:30.
 
 ## Repository layout
 

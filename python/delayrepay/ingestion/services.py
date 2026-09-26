@@ -5,7 +5,7 @@ from typing import Any
 
 WINDOWS = {
     "MORNING": {"origin": "MKC", "destination": "EUS", "from": "06:00", "to": "08:00"},
-    "EVENING": {"origin": "EUS", "destination": "MKC", "from": "16:30", "to": "18:00"},
+    "EVENING": {"origin": "EUS", "destination": "MKC", "from": "16:30", "to": "18:30"},
 }
 
 
