@@ -102,7 +102,7 @@ python -m delayrepay report --date 2026-09-28 --lookback-days 14
 python -m delayrepay report-week --week-start 2026-09-28
 ```
 
-Reports are written under `data-store/reports/`. `--lookback-days 14` combines any stored dates in the 14 calendar days ending on `--date`; if `--date` is omitted, it ends today. It reads local files only and makes no RTT calls. The normal report shows only the train, destination delay, and claim classification. Daily JSON retains the underlying times and RTT identifiers.
+Reports are written under `data-store/reports/` as matching `.json` and `.md` files. The structured JSON is written first and contains the services, calculations, alternatives, explanations, rule references, and summary counts. Markdown is then rendered from that saved JSON. This lets you build another visualisation directly from the report JSON without rerunning assessment. `--lookback-days 14` combines any stored dates in the 14 calendar days ending on `--date`; if `--date` is omitted, it ends today. It reads local files only and makes no RTT calls.
 
 `--lookback-days` is supported by all three stages, with `--lookup-days` accepted as an alias. Discovery uses only the latest occurrence of each weekday in the range, so a 14-day lookup performs at most five timetable snapshots. Collection processes every weekday in the range. Reporting combines every stored day in the range.
 

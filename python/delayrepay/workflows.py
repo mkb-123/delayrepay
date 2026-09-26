@@ -153,22 +153,66 @@ def generate_report(root: Path, service_date: str, action_only: bool = False) ->
     claims = load_claims(root)
     services = daily.get("services", [])
     LOGGER.info("Assessing %d stored services for %s", len(services), service_date)
-    rows = []
+    all_rows = []
     for service in services:
         evaluation = assess(service, services, claims.get(service["serviceId"]))
-        rows.append({**service, "assessment": evaluation})
+        all_rows.append({**service, "assessment": evaluation})
+    rows = all_rows
     if action_only:
         rows = [row for row in rows if row["assessment"]["status"] in {"POTENTIAL", "NEEDS_REVIEW"}]
-    outstanding = sum(row["assessment"]["status"] == "POTENTIAL" for row in rows)
-    lines = [f"# Delay Repay brief — {service_date}", "", f"Potential claims: **{outstanding}**", ""]
-    if not daily.get("complete", True):
+    counts: dict[str, int] = {}
+    for row in all_rows:
+        status = row["assessment"]["status"]
+        counts[status] = counts.get(status, 0) + 1
+    report_data = {
+        "version": 1,
+        "generatedAt": _now(),
+        "date": service_date,
+        "actionOnly": action_only,
+        "sourceComplete": daily.get("complete", True),
+        "summary": {
+            "storedServices": len(services),
+            "includedServices": len(rows),
+            "potentialClaims": counts.get("POTENTIAL", 0),
+            "needsReview": counts.get("NEEDS_REVIEW", 0),
+            "claimed": counts.get("CLAIMED", 0),
+            "noClaim": counts.get("NO_CLAIM", 0),
+            "storedByDirection": {
+                direction: sum(service.get("direction") == direction for service in services)
+                for direction in WINDOWS
+            },
+        },
+        "services": all_rows,
+    }
+    json_path = root / "reports" / f"{service_date}.json"
+    write_json(json_path, report_data)
+    # Markdown is deliberately rendered from the persisted JSON artifact.
+    persisted = read_json(json_path)
+    text = render_report_markdown(persisted)
+    path = report_path(root, service_date)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    LOGGER.info("Wrote report data %s", json_path)
+    LOGGER.info("Wrote Markdown report %s; classifications: %s", path, counts or {"SERVICES": 0})
+    return text, rows
+
+
+def render_report_markdown(report_data: dict[str, Any]) -> str:
+    service_date = report_data["date"]
+    rows = report_data.get("services", [])
+    summary = report_data.get("summary", {})
+    action_only = report_data.get("actionOnly", False)
+    if action_only:
+        rows = [row for row in rows if row["assessment"]["status"] in {"POTENTIAL", "NEEDS_REVIEW"}]
+    lines = [f"# Delay Repay brief — {service_date}", "", f"Potential claims: **{summary.get('potentialClaims', 0)}**", ""]
+    if not report_data.get("sourceComplete", True):
         lines.extend(["> Collection was incomplete. Missing services are not assessed.", ""])
     for direction in ("MORNING", "EVENING"):
         window = WINDOWS[direction]
         lines.extend([f"## {direction.title()} — {window['origin']} → {window['destination']}", "", "| Train | Delay | Can I claim? |", "|---:|---:|---|"])
         section = [row for row in rows if row["direction"] == direction]
         if not section:
-            stored = any(service.get("direction") == direction for service in services)
+            stored = summary.get("storedByDirection", {}).get(direction, 0) > 0
             lines.append(f"| — | — | {'No action required' if stored and action_only else 'No stored services'} |")
         for row in section:
             assessment = row["assessment"]
@@ -176,28 +220,23 @@ def generate_report(root: Path, service_date: str, action_only: bool = False) ->
             labels = {"NO_CLAIM": "No", "POTENTIAL": "Potential", "NEEDS_REVIEW": "Needs review", "CLAIMED": "Claimed"}
             lines.append(f"| {row['scheduledDeparture'][11:16]} · {row['operatorName']} | {delay} | {labels[assessment['status']]} |")
         lines.append("")
-    text = "\n".join(lines)
-    path = report_path(root, service_date)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    counts: dict[str, int] = {}
-    for row in rows:
-        status = row["assessment"]["status"]
-        counts[status] = counts.get(status, 0) + 1
-    LOGGER.info("Wrote report %s; classifications: %s", path, counts or {"ACTIONABLE": 0})
-    return text, rows
+    return "\n".join(lines)
 
 
 def report_week(root: Path, week_start: str, action_only: bool = False) -> str:
     start = date.fromisoformat(week_start)
-    chunks = []
+    reports = []
     for offset in range(5):
         current = (start + timedelta(days=offset)).isoformat()
         if daily_path(root, current).exists():
-            chunks.append(generate_report(root, current, action_only)[0])
-    if not chunks:
+            generate_report(root, current, action_only)
+            reports.append(read_json(root / "reports" / f"{current}.json"))
+    if not reports:
         raise ValueError("No stored daily data in that week")
-    text = "\n\n---\n\n".join(chunks)
+    combined = {"version": 1, "generatedAt": _now(), "type": "week", "weekStart": week_start, "actionOnly": action_only, "days": reports}
+    json_path = root / "reports" / f"week-{week_start}.json"
+    write_json(json_path, combined)
+    text = "\n\n---\n\n".join(render_report_markdown(item) for item in read_json(json_path)["days"])
     path = root / "reports" / f"week-{week_start}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
@@ -210,20 +249,28 @@ def report_lookback(root: Path, end_date: str, days: int, action_only: bool = Fa
     end = date.fromisoformat(end_date)
     start = end - timedelta(days=days - 1)
     LOGGER.info("Building %d-day report from %s to %s", days, start, end)
-    chunks = []
+    reports = []
     current = start
     while current <= end:
         service_date = current.isoformat()
         if daily_path(root, service_date).exists():
-            chunks.append(generate_report(root, service_date, action_only)[0])
+            generate_report(root, service_date, action_only)
+            reports.append(read_json(root / "reports" / f"{service_date}.json"))
         current += timedelta(days=1)
-    if not chunks:
+    if not reports:
         raise ValueError(f"No stored daily data from {start.isoformat()} to {end.isoformat()}")
-    text = "\n\n---\n\n".join(chunks)
+    combined = {
+        "version": 1, "generatedAt": _now(), "type": "lookback", "daysRequested": days,
+        "startDate": start.isoformat(), "endDate": end_date, "actionOnly": action_only, "days": reports,
+    }
+    json_path = root / "reports" / f"lookback-{days}-days-ending-{end_date}.json"
+    write_json(json_path, combined)
+    text = "\n\n---\n\n".join(render_report_markdown(item) for item in read_json(json_path)["days"])
     path = root / "reports" / f"lookback-{days}-days-ending-{end_date}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    LOGGER.info("Wrote combined report %s from %d stored days", path, len(chunks))
+    LOGGER.info("Wrote combined report data %s", json_path)
+    LOGGER.info("Wrote combined Markdown report %s from %d stored days", path, len(reports))
     return text
 
 
