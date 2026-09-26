@@ -1,6 +1,6 @@
 # Relevant service catalogue
 
-Updated: 2026-09-26T11:46:10.370310Z
+Updated: 2026-09-26T15:24:13.095046Z
 
 | Day | Direction | Train | Operator | Journey |
 |---|---|---:|---|---|
@@ -26,6 +26,80 @@ Updated: 2026-09-26T11:46:10.370310Z
 | Mon | Morning | 07:29 | London Northwestern Railway | MKC → EUS (08:05) |
 | Mon | Morning | 07:35 | London Northwestern Railway | MKC → EUS (08:18) |
 | Mon | Morning | 07:46 | West Midlands Railway | MKC → EUS (08:21) |
+| Tue | Evening | 16:43 | Avanti West Coast | EUS → MKC (17:14) |
+| Tue | Evening | 16:46 | London Northwestern Railway | EUS → MKC (17:18) |
+| Tue | Evening | 16:56 | London Northwestern Railway | EUS → MKC (17:37) |
+| Tue | Evening | 17:16 | Avanti West Coast | EUS → MKC (17:51) |
+| Tue | Evening | 17:19 | London Northwestern Railway | EUS → MKC (17:56) |
+| Tue | Evening | 17:26 | London Northwestern Railway | EUS → MKC (18:07) |
+| Tue | Evening | 17:46 | London Northwestern Railway | EUS → MKC (18:18) |
+| Tue | Evening | 17:56 | London Northwestern Railway | EUS → MKC (18:37) |
+| Tue | Morning | 06:27 | Avanti West Coast | MKC → EUS (07:03) |
+| Tue | Morning | 06:32 | London Northwestern Railway | MKC → EUS (07:10) |
+| Tue | Morning | 06:42 | London Northwestern Railway | MKC → EUS (07:21) |
+| Tue | Morning | 06:43 | Avanti West Coast | MKC → EUS (07:18) |
+| Tue | Morning | 06:49 | London Northwestern Railway | MKC → EUS (07:25) |
+| Tue | Morning | 06:56 | Avanti West Coast | MKC → EUS (07:28) |
+| Tue | Morning | 06:56 | London Northwestern Railway | MKC → EUS (07:38) |
+| Tue | Morning | 07:00 | Avanti West Coast | MKC → EUS (07:32) |
+| Tue | Morning | 07:07 | London Northwestern Railway | MKC → EUS (07:51) |
+| Tue | Morning | 07:17 | Avanti West Coast | MKC → EUS (07:54) |
+| Tue | Morning | 07:25 | Avanti West Coast | MKC → EUS (08:00) |
+| Tue | Morning | 07:29 | London Northwestern Railway | MKC → EUS (08:05) |
+| Tue | Morning | 07:35 | London Northwestern Railway | MKC → EUS (08:18) |
+| Tue | Morning | 07:46 | West Midlands Railway | MKC → EUS (08:21) |
+| Wed | Evening | 16:43 | Avanti West Coast | EUS → MKC (17:14) |
+| Wed | Evening | 16:46 | London Northwestern Railway | EUS → MKC (17:18) |
+| Wed | Evening | 16:56 | London Northwestern Railway | EUS → MKC (17:37) |
+| Wed | Evening | 17:16 | Avanti West Coast | EUS → MKC (17:51) |
+| Wed | Evening | 17:19 | London Northwestern Railway | EUS → MKC (17:56) |
+| Wed | Evening | 17:26 | London Northwestern Railway | EUS → MKC (18:07) |
+| Wed | Evening | 17:46 | London Northwestern Railway | EUS → MKC (18:18) |
+| Wed | Evening | 17:56 | London Northwestern Railway | EUS → MKC (18:37) |
+| Wed | Morning | 06:27 | Avanti West Coast | MKC → EUS (07:03) |
+| Wed | Morning | 06:32 | London Northwestern Railway | MKC → EUS (07:10) |
+| Wed | Morning | 06:42 | London Northwestern Railway | MKC → EUS (07:21) |
+| Wed | Morning | 06:43 | Avanti West Coast | MKC → EUS (07:18) |
+| Wed | Morning | 06:49 | London Northwestern Railway | MKC → EUS (07:25) |
+| Wed | Morning | 06:56 | Avanti West Coast | MKC → EUS (07:28) |
+| Wed | Morning | 06:56 | London Northwestern Railway | MKC → EUS (07:38) |
+| Wed | Morning | 07:00 | Avanti West Coast | MKC → EUS (07:32) |
+| Wed | Morning | 07:07 | London Northwestern Railway | MKC → EUS (07:51) |
+| Wed | Morning | 07:17 | Avanti West Coast | MKC → EUS (07:54) |
+| Wed | Morning | 07:25 | Avanti West Coast | MKC → EUS (08:00) |
+| Wed | Morning | 07:29 | London Northwestern Railway | MKC → EUS (08:05) |
+| Wed | Morning | 07:35 | London Northwestern Railway | MKC → EUS (08:18) |
+| Wed | Morning | 07:46 | West Midlands Railway | MKC → EUS (08:21) |
+| Thu | Evening | 16:43 | Avanti West Coast | EUS → MKC (17:14) |
+| Thu | Evening | 16:46 | London Northwestern Railway | EUS → MKC (17:18) |
+| Thu | Evening | 16:56 | London Northwestern Railway | EUS → MKC (17:37) |
+| Thu | Evening | 17:16 | Avanti West Coast | EUS → MKC (17:51) |
+| Thu | Evening | 17:19 | London Northwestern Railway | EUS → MKC (17:56) |
+| Thu | Evening | 17:26 | London Northwestern Railway | EUS → MKC (18:07) |
+| Thu | Evening | 17:46 | London Northwestern Railway | EUS → MKC (18:18) |
+| Thu | Evening | 17:56 | London Northwestern Railway | EUS → MKC (18:37) |
+| Thu | Morning | 06:27 | Avanti West Coast | MKC → EUS (07:03) |
+| Thu | Morning | 06:32 | London Northwestern Railway | MKC → EUS (07:10) |
+| Thu | Morning | 06:42 | London Northwestern Railway | MKC → EUS (07:21) |
+| Thu | Morning | 06:43 | Avanti West Coast | MKC → EUS (07:18) |
+| Thu | Morning | 06:49 | London Northwestern Railway | MKC → EUS (07:25) |
+| Thu | Morning | 06:56 | Avanti West Coast | MKC → EUS (07:28) |
+| Thu | Morning | 06:56 | London Northwestern Railway | MKC → EUS (07:38) |
+| Thu | Morning | 07:00 | Avanti West Coast | MKC → EUS (07:32) |
+| Thu | Morning | 07:07 | London Northwestern Railway | MKC → EUS (07:51) |
+| Thu | Morning | 07:17 | Avanti West Coast | MKC → EUS (07:54) |
+| Thu | Morning | 07:25 | Avanti West Coast | MKC → EUS (08:00) |
+| Thu | Morning | 07:29 | London Northwestern Railway | MKC → EUS (08:05) |
+| Thu | Morning | 07:35 | London Northwestern Railway | MKC → EUS (08:18) |
+| Thu | Morning | 07:46 | West Midlands Railway | MKC → EUS (08:21) |
+| Fri | Evening | 16:43 | Avanti West Coast | EUS → MKC (17:14) |
+| Fri | Evening | 16:46 | London Northwestern Railway | EUS → MKC (17:18) |
+| Fri | Evening | 16:56 | London Northwestern Railway | EUS → MKC (17:37) |
+| Fri | Evening | 17:16 | Avanti West Coast | EUS → MKC (17:51) |
+| Fri | Evening | 17:19 | London Northwestern Railway | EUS → MKC (17:56) |
+| Fri | Evening | 17:26 | London Northwestern Railway | EUS → MKC (18:07) |
+| Fri | Evening | 17:46 | London Northwestern Railway | EUS → MKC (18:18) |
+| Fri | Evening | 17:56 | London Northwestern Railway | EUS → MKC (18:37) |
 | Fri | Morning | 06:27 | Avanti West Coast | MKC → EUS (07:03) |
 | Fri | Morning | 06:32 | London Northwestern Railway | MKC → EUS (07:10) |
 | Fri | Morning | 06:42 | London Northwestern Railway | MKC → EUS (07:21) |
