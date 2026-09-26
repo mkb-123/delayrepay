@@ -8,56 +8,38 @@
 </head>
 <body>
   <header>
-    <div><p class="eyebrow">MKC ↔ EUS</p><h1>Delay Repay</h1></div>
-    <button id="refreshButton" class="secondary">Refresh RTT</button>
+    <div><p class="eyebrow">MKC ↔ EUS</p><h1>Disruptions</h1></div>
+    <button id="refreshButton" class="secondary">Refresh</button>
   </header>
   <main>
     <section class="hero">
-      <span>Potential claims</span>
-      <strong id="potentialCount">—</strong>
-      <p id="rangeLabel">Loading history…</p>
-    </section>
-
-    <section class="summary" aria-label="Summary">
-      <div><strong id="reviewCount">—</strong><span>Needs review</span></div>
+      <div><strong id="potentialCount">—</strong><span>Potential</span></div>
+      <div><strong id="reviewCount">—</strong><span>Review</span></div>
       <div><strong id="claimedCount">—</strong><span>Claimed</span></div>
-      <div><strong id="incompleteCount">—</strong><span>Incomplete days</span></div>
+      <p id="rangeLabel">Loading…</p>
     </section>
 
-    <section class="controls">
-      <label>Period
-        <select id="period">
-          <option value="10">Last 10 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="all">All stored</option>
-          <option value="custom">Custom dates</option>
-        </select>
-      </label>
-      <label id="fromWrap" hidden>From <input type="date" id="fromDate"></label>
-      <label id="toWrap" hidden>To <input type="date" id="toDate"></label>
-      <label>Direction
-        <select id="direction"><option value="">All</option><option>MORNING</option><option>EVENING</option></select>
-      </label>
-      <label>Operator <select id="operator"><option value="">All</option></select></label>
-      <label>Status
-        <select id="status"><option value="">All</option><option value="POTENTIAL">Potential claim</option><option value="NEEDS_REVIEW">Needs review</option><option value="CLAIMED">Claimed</option><option value="NO_CLAIM">No claim</option></select>
-      </label>
-      <label>Delay
-        <select id="delay"><option value="">All</option><option value="15" selected>15+ min / cancelled</option><option value="30">30+ min / cancelled</option><option value="60">60+ min / cancelled</option></select>
-      </label>
-    </section>
-
-    <section class="legend" aria-label="Delay heat map legend">
-      <span><i class="heat-dot heat-ok"></i>Under 15</span>
-      <span><i class="heat-dot heat-15"></i>15–29</span>
-      <span><i class="heat-dot heat-30"></i>30–59</span>
-      <span><i class="heat-dot heat-60"></i>60+</span>
-      <span><i class="heat-dot heat-cancelled"></i>Cancelled</span>
-    </section>
+    <details class="filter-panel">
+      <summary><span>Filters</span><strong id="filterSummary">15+ min or cancelled</strong></summary>
+      <section class="controls">
+        <label>Period
+          <select id="period"><option value="10">Last 10 days</option><option value="30">Last 30 days</option><option value="all">All stored</option><option value="custom">Custom dates</option></select>
+        </label>
+        <label id="fromWrap" hidden>From <input type="date" id="fromDate"></label>
+        <label id="toWrap" hidden>To <input type="date" id="toDate"></label>
+        <label>Direction <select id="direction"><option value="">All</option><option>MORNING</option><option>EVENING</option></select></label>
+        <label>Operator <select id="operator"><option value="">All</option></select></label>
+        <label>Status <select id="status"><option value="">All</option><option value="POTENTIAL">Potential</option><option value="NEEDS_REVIEW">Review</option><option value="CLAIMED">Claimed</option><option value="NO_CLAIM">No claim</option></select></label>
+        <label>Delay <select id="delay"><option value="">All trains</option><option value="15" selected>15+ / cancelled</option><option value="30">30+ / cancelled</option><option value="60">60+ / cancelled</option></select></label>
+      </section>
+      <p class="incomplete"><span id="incompleteCount">—</span> incomplete collection days</p>
+    </details>
 
     <div id="notice" class="notice" hidden></div>
     <section id="results" aria-live="polite"></section>
   </main>
+
+  <dialog id="serviceDialog" class="service-dialog"><button class="dialog-close secondary" onclick="this.closest('dialog').close()">Close</button><div id="serviceDetail"></div></dialog>
 
   <dialog id="refreshDialog">
     <form method="dialog">
