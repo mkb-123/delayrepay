@@ -8,7 +8,7 @@ It separates three jobs so routine collection stays cheap:
 2. `collect` requests only those known services for a date.
 3. `report` reads stored data and makes no RTT calls.
 
-The earlier Next.js viewer remains in the repository, but the Python CLI is now the supported workflow.
+The supported application is the Python CLI. The earlier Next.js viewer and its inactive GitHub Pages workflows are archived under `legacy/nextjs/` for reference.
 
 ## Run it
 
