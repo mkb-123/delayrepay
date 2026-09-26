@@ -14,6 +14,7 @@ from ..ingestion.rtt import RttClient
 from ..operations import collection_plan, discovery_plan
 from ..storage.sqlite import Database
 from ..workflows import build_report_data, collect, discover, set_claim
+from ..workflows import _now
 
 LOGGER = logging.getLogger("delayrepay.web")
 JOBS: dict[str, dict[str, Any]] = {}
@@ -212,6 +213,24 @@ def create_app(root: Path | str | None = None) -> Flask:
         if not service:
             return jsonify({"error": "Service not found"}), 404
         set_claim(data_root, service["serviceDate"], service_id, True)
+        return jsonify({"status": "RESTORED"})
+
+    @app.post("/api/days/<service_date>/acknowledgement")
+    def acknowledge_day(service_date: str):
+        _require_same_origin()
+        date.fromisoformat(service_date)
+        with Database(data_root) as database:
+            if service_date not in database.stored_dates(service_date, service_date):
+                return jsonify({"error": "No stored services for this date."}), 404
+            database.set_day_acknowledgement(service_date, _now())
+        return jsonify({"status": "ACKNOWLEDGED"})
+
+    @app.delete("/api/days/<service_date>/acknowledgement")
+    def undo_day_acknowledgement(service_date: str):
+        _require_same_origin()
+        date.fromisoformat(service_date)
+        with Database(data_root) as database:
+            database.set_day_acknowledgement(service_date, None)
         return jsonify({"status": "RESTORED"})
 
     return app

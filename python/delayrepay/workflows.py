@@ -250,6 +250,7 @@ def build_report_data(database: Database, service_date: str, action_only: bool, 
         "version": 1,
         "generatedAt": _now(),
         "date": service_date,
+        "acknowledgedAt": database.day_acknowledged_at(service_date),
         "actionOnly": action_only,
         "sourceComplete": database.collection_complete(service_date),
         "summary": {

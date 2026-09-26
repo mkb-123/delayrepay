@@ -29,9 +29,15 @@ select, input { width: 100%; display: block; margin-top: 3px; border: 1px solid 
 .section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 2px 7px; }
 .section-heading h2 { font-size: 1rem; }
 .section-heading span { color: #737d78; font-size: .66rem; text-align: right; }
+.show-acknowledged { display: flex; align-items: center; gap: 5px; font-size: .68rem; cursor: pointer; }
+.show-acknowledged input { width: auto; margin: 0; }
+.recommend-note { color: #737d78; font-size: .66rem; margin: -4px 2px 8px; }
 #recommendations { display: grid; gap: 8px; }
 .recommend-day { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: start; }
-.recommend-day h3 { margin: 9px 0 0; font-size: .74rem; color: #59645f; }
+.recommend-date { padding-top: 7px; }
+.recommend-day h3 { margin: 0 0 5px; font-size: .74rem; color: #59645f; }
+.ack-day { padding: 4px 7px; font-size: .63rem; }
+.recommend-day.acknowledged { opacity: .58; }
 .recommend-day > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .recommend-row { display: flex; flex-direction: column; align-items: flex-start; min-height: 54px; color: #26312c; background: white; border: 1px solid #dce2de; text-align: left; padding: 8px 10px; }
 .recommend-row strong { font-size: .78rem; }.recommend-row span { font-size: .68rem; margin-top: 3px; }

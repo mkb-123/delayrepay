@@ -29,7 +29,8 @@ function renderRecommendations() {
   let html = "";
   for (const day of data.days) {
     if (!day.recommendations?.length) continue;
-    html += `<article class="recommend-day"><h3>${esc(dayLabel(day.date))}</h3><div>`;
+    if (day.acknowledgedAt && !$('showAcknowledged').checked) continue;
+    html += `<article class="recommend-day${day.acknowledgedAt ? " acknowledged" : ""}"><div class="recommend-date"><h3>${esc(dayLabel(day.date))}</h3><button class="ack-day secondary" onclick="acknowledgeDay('${day.date}', ${day.acknowledgedAt ? "true" : "false"})">${day.acknowledgedAt ? "Undo" : "Done"}</button></div><div>`;
     for (const item of day.recommendations) {
       const route = item.direction === "MORNING" ? "Morning" : "Evening";
       if (item.status === "NO_CLAIM") {
@@ -43,6 +44,13 @@ function renderRecommendations() {
     html += "</div></article>";
   }
   $("recommendations").innerHTML = html || '<p class="empty">No stored days to recommend.</p>';
+}
+
+async function acknowledgeDay(serviceDate, undo) {
+  const response = await fetch(`/api/days/${serviceDate}/acknowledgement`, {method: undo ? "DELETE" : "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
+  const result = await response.json();
+  showNotice(response.ok ? (undo ? "Day restored." : "Day acknowledged.") : result.error, !response.ok);
+  if (response.ok) await load();
 }
 
 function render() {
@@ -179,6 +187,7 @@ async function pollJob(id) {
 $("period").addEventListener("change", () => { const custom = $("period").value === "custom"; $("fromWrap").hidden = !custom; $("toWrap").hidden = !custom; if (!custom) load(); });
 for (const id of ["fromDate", "toDate"]) $(id).addEventListener("change", load);
 for (const id of ["direction", "operator", "status", "delay"]) $(id).addEventListener("change", render);
+$("showAcknowledged").addEventListener("change", renderRecommendations);
 $("refreshButton").addEventListener("click", openData);
 $("planDiscovery").addEventListener("click", () => previewOperation("discover"));
 $("planCollection").addEventListener("click", () => previewOperation("collect"));
