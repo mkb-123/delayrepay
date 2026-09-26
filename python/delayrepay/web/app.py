@@ -11,8 +11,9 @@ from flask import Flask, jsonify, render_template, request
 
 from ..refresh import CollectionBusyError, CollectionLock, refresh_plan
 from ..ingestion.rtt import RttClient
+from ..operations import collection_plan, discovery_plan
 from ..storage.sqlite import Database
-from ..workflows import build_report_data, collect, set_claim
+from ..workflows import build_report_data, collect, discover, set_claim
 
 LOGGER = logging.getLogger("delayrepay.web")
 JOBS: dict[str, dict[str, Any]] = {}
@@ -38,6 +39,41 @@ def _run_refresh(root: Path, job_id: str, plan: dict[str, Any]) -> None:
     except Exception as error:  # job errors must remain visible to the polling client
         LOGGER.exception("Refresh job %s failed", job_id)
         _job_update(job_id, status="failed", error=str(error), message="Refresh failed")
+
+
+def _run_operation(root: Path, job_id: str, operation: str, plan: dict[str, Any]) -> None:
+    try:
+        with CollectionLock(root):
+            client = RttClient()
+            targets = plan["dates"]
+            for index, target in enumerate(targets, 1):
+                service_date = target if isinstance(target, str) else target["date"]
+                verb = "Discovering" if operation == "discover" else "Collecting"
+                _job_update(job_id, status="running", completed=index - 1, message=f"{verb} {service_date}")
+                if operation == "discover":
+                    discover(root, service_date, client, plan["direction"])
+                else:
+                    collect(root, service_date, client)
+                    with Database(root) as database:
+                        build_report_data(database, service_date, False, persist=True)
+            _job_update(job_id, status="complete", completed=len(targets), message=f"{operation.title()} complete")
+    except Exception as error:
+        LOGGER.exception("%s job %s failed", operation, job_id)
+        _job_update(job_id, status="failed", error=str(error), message=f"{operation.title()} failed")
+
+
+def _start_job(root: Path, operation: str, plan: dict[str, Any]):
+    with JOBS_LOCK:
+        active = next((job for job in JOBS.values() if job["status"] in {"queued", "running"}), None)
+        if active or (root / "collection.lock").exists():
+            return jsonify({"error": "Another discovery or collection is already running."}), 409
+        job_id = uuid.uuid4().hex
+        JOBS[job_id] = {
+            "id": job_id, "operation": operation, "status": "queued", "completed": 0,
+            "total": len(plan["dates"]), "message": "Queued", "plan": plan,
+        }
+    threading.Thread(target=_run_operation, args=(root, job_id, operation, plan), daemon=True).start()
+    return jsonify(JOBS[job_id]), 202
 
 
 def _require_same_origin() -> None:
@@ -98,6 +134,38 @@ def create_app(root: Path | str | None = None) -> Flask:
     @app.get("/api/refresh-plan")
     def get_refresh_plan():
         return jsonify(refresh_plan(data_root, int(request.args.get("days", "10"))))
+
+    @app.get("/api/discovery-plan")
+    def get_discovery_plan():
+        return jsonify(discovery_plan(
+            request.args.get("endDate", date.today().isoformat()),
+            int(request.args.get("days", "5")), request.args.get("direction", "ALL"),
+        ))
+
+    @app.post("/api/discover")
+    def start_discovery():
+        _require_same_origin()
+        payload = request.get_json() or {}
+        plan = discovery_plan(payload.get("endDate", date.today().isoformat()), int(payload.get("days", 5)), payload.get("direction", "ALL"))
+        if not plan["dates"]:
+            return jsonify({"status": "complete", "message": "No weekdays in this range.", "plan": plan})
+        return _start_job(data_root, "discover", plan)
+
+    @app.get("/api/collection-plan")
+    def get_collection_plan():
+        return jsonify(collection_plan(
+            data_root, request.args.get("endDate", date.today().isoformat()),
+            int(request.args.get("days", "10")), request.args.get("mode", "missing"),
+        ))
+
+    @app.post("/api/collect")
+    def start_collection():
+        _require_same_origin()
+        payload = request.get_json() or {}
+        plan = collection_plan(data_root, payload.get("endDate", date.today().isoformat()), int(payload.get("days", 10)), payload.get("mode", "missing"))
+        if not plan["dates"]:
+            return jsonify({"status": "complete", "message": "Nothing needs collecting.", "plan": plan})
+        return _start_job(data_root, "collect", plan)
 
     @app.post("/api/refresh")
     def start_refresh():

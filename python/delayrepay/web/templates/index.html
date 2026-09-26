@@ -9,7 +9,7 @@
 <body>
   <header>
     <div><p class="eyebrow">MKC ↔ EUS</p><h1>Disruptions</h1></div>
-    <button id="refreshButton" class="secondary">Refresh</button>
+    <button id="refreshButton" class="secondary">Update data</button>
   </header>
   <main>
     <section class="hero">
@@ -36,17 +36,32 @@
     </details>
 
     <div id="notice" class="notice" hidden></div>
+    <section class="recommendations">
+      <div class="section-heading"><h2>What to claim</h2><span>Assumes the highlighted service is the train you travelled on.</span></div>
+      <div id="recommendations"></div>
+    </section>
     <section id="results" aria-live="polite"></section>
   </main>
 
   <dialog id="serviceDialog" class="service-dialog"><button class="dialog-close secondary" onclick="this.closest('dialog').close()">Close</button><div id="serviceDetail"></div></dialog>
 
-  <dialog id="refreshDialog">
-    <form method="dialog">
-      <h2>Refresh the last 10 days?</h2>
-      <div id="refreshPlan">Checking what is missing…</div>
-      <div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button id="confirmRefresh" value="default">Refresh</button></div>
-    </form>
+  <dialog id="dataDialog" class="data-dialog">
+    <button class="dialog-close secondary" onclick="this.closest('dialog').close()">Close</button>
+    <h2>Update rail data</h2>
+    <section>
+      <h3>1. Discover timetable</h3>
+      <p>Run occasionally when the timetable changes.</p>
+      <div class="operation-fields"><label>Week ending <input type="date" id="discoverEnd"></label><label>Days <input type="number" id="discoverDays" value="5" min="1" max="90"></label><label>Direction <select id="discoverDirection"><option value="ALL">Both</option><option value="MORNING">Morning</option><option value="EVENING">Evening</option></select></label></div>
+      <button id="planDiscovery">Preview discovery</button>
+    </section>
+    <section>
+      <h3>2. Collect running data</h3>
+      <p>Fetch actual times and cancellations for catalogued services.</p>
+      <div class="operation-fields"><label>Ending <input type="date" id="collectEnd"></label><label>Days <input type="number" id="collectDays" value="10" min="1" max="90"></label><label>Mode <select id="collectMode"><option value="missing">Missing/incomplete</option><option value="all">Recollect all</option></select></label></div>
+      <button id="planCollection">Preview collection</button>
+    </section>
+    <div id="operationPlan" class="operation-plan" hidden></div>
+    <div class="dialog-actions"><button id="runOperation" hidden>Run</button></div>
   </dialog>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </body>

@@ -266,7 +266,46 @@ def build_report_data(database: Database, service_date: str, action_only: bool, 
         },
         "services": all_rows,
     }
+    report_data["recommendations"] = build_recommendations(report_data)
     return report_data
+
+
+def build_recommendations(report_data: dict[str, Any]) -> list[dict[str, Any]]:
+    services = report_data.get("services", [])
+    recommendations = []
+    for direction in WINDOWS:
+        rows = [row for row in services if row.get("direction") == direction]
+        if not rows:
+            continue
+        underlying = [(row, assess(row, rows, None)) for row in rows]
+        potential = [(row, evaluation) for row, evaluation in underlying if evaluation["status"] == "POTENTIAL"]
+        potential.sort(key=lambda item: (-(item[1].get("effectiveDelayMinutes") or 0), item[0].get("scheduledDeparture") or ""))
+        selected = potential[0] if potential else None
+        claimed_at = selected[0]["assessment"].get("claimedAt") if selected else None
+        if selected and (claimed_at or report_data.get("sourceComplete", False)):
+            row, evaluation = selected
+            recommendations.append({
+                "direction": direction, "status": "CLAIMED" if claimed_at else "POTENTIAL",
+                "serviceId": row["serviceId"], "scheduledDeparture": row.get("scheduledDeparture"),
+                "operatorName": row["operatorName"], "effectiveDelayMinutes": evaluation["effectiveDelayMinutes"],
+                "explanation": "Longest confidently claimable delay for this direction.",
+                "claimUrl": evaluation.get("claimUrl"), "claimedAt": claimed_at,
+            })
+            continue
+        review = [row for row in rows if row["assessment"]["status"] == "NEEDS_REVIEW" or row.get("cancelled")]
+        review.sort(key=lambda row: (not row.get("cancelled"), -(row.get("rawDelayMinutes") or 0), row.get("scheduledDeparture") or ""))
+        if selected or review:
+            row = selected[0] if selected else review[0]
+            recommendations.append({
+                "direction": direction, "status": "NEEDS_REVIEW", "serviceId": row["serviceId"],
+                "scheduledDeparture": row.get("scheduledDeparture"), "operatorName": row["operatorName"],
+                "effectiveDelayMinutes": selected[1].get("effectiveDelayMinutes") if selected else None,
+                "explanation": "Collection is incomplete; review this disruption before claiming." if not report_data.get("sourceComplete", False) else row["assessment"]["explanation"],
+                "claimUrl": row["assessment"].get("claimUrl"), "claimedAt": row["assessment"].get("claimedAt"),
+            })
+        else:
+            recommendations.append({"direction": direction, "status": "NO_CLAIM", "explanation": "No confidently claimable disruption."})
+    return recommendations
 
 
 def write_latest_report(root: Path, report_data: dict[str, Any]) -> str:

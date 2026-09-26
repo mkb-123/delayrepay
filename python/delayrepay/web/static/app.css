@@ -25,6 +25,21 @@ label { color: #5d6863; font-size: .68rem; font-weight: 750; }
 select, input { width: 100%; display: block; margin-top: 3px; border: 1px solid #ccd4cf; border-radius: 7px; background: white; padding: 7px; color: inherit; }
 .incomplete { color: #6a746f; padding: 0 12px 10px; font-size: .7rem; }
 
+.recommendations { margin: 16px 0 20px; }
+.section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 2px 7px; }
+.section-heading h2 { font-size: 1rem; }
+.section-heading span { color: #737d78; font-size: .66rem; text-align: right; }
+#recommendations { display: grid; gap: 8px; }
+.recommend-day { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: start; }
+.recommend-day h3 { margin: 9px 0 0; font-size: .74rem; color: #59645f; }
+.recommend-day > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.recommend-row { display: flex; flex-direction: column; align-items: flex-start; min-height: 54px; color: #26312c; background: white; border: 1px solid #dce2de; text-align: left; padding: 8px 10px; }
+.recommend-row strong { font-size: .78rem; }.recommend-row span { font-size: .68rem; margin-top: 3px; }
+.recommend-row.POTENTIAL { background: #fff0bd; border-color: #dfb833; }
+.recommend-row.NEEDS_REVIEW { background: #f7e7c2; border-color: #cf9940; }
+.recommend-row.CLAIMED { background: #d9f1e2; border-color: #6eb58a; }
+.recommend-row.no-action { color: #78817d; background: #f0f2f1; justify-content: center; }
+
 .grid-section { margin-top: 18px; }
 .grid-section h2 { font-size: 1rem; margin: 0 0 6px 2px; }
 .grid-section h2 span { color: #68736d; font-size: .74rem; font-weight: 650; margin-left: 5px; }
@@ -68,12 +83,25 @@ dialog::backdrop { background: #10251eaa; }
 .actions a, .service-dialog > div > p a { padding: 7px; color: #176b55; font-weight: 750; text-decoration: none; }
 #refreshPlan { margin: 14px 0; line-height: 1.45; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.data-dialog { width: min(620px, calc(100% - 24px)); }
+.data-dialog > h2 { margin-bottom: 12px; }
+.data-dialog > section { border-top: 1px solid #e0e5e2; padding: 13px 0; }
+.data-dialog h3 { margin: 0 0 3px; font-size: .9rem; }
+.data-dialog section > p { color: #6b756f; font-size: .72rem; margin-bottom: 9px; }
+.operation-fields { display: grid; grid-template-columns: 2fr .8fr 1.4fr; gap: 8px; margin-bottom: 9px; }
+.operation-plan { background: #edf4f1; border-radius: 8px; padding: 10px; font-size: .78rem; line-height: 1.5; }
 
 @media (max-width: 600px) {
   .hero { gap: 11px; }
   .hero p { display: none; }
   .hero strong { font-size: 1.2rem; }
   .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .section-heading { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .section-heading span { text-align: left; }
+  .recommend-day { grid-template-columns: 68px 1fr; }
+  .recommend-day > div { grid-template-columns: 1fr; }
+  .operation-fields { grid-template-columns: 1fr 70px; }
+  .operation-fields label:last-child { grid-column: 1 / -1; }
   .heat-grid { min-width: 510px; }
   .heat-grid th:first-child { width: 126px; }
 }

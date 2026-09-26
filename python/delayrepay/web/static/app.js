@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
 let data = null;
+let pendingOperation = null;
 
 function isoDate(value) { return value ? value.slice(0, 10) : ""; }
 function clock(value) { return value ? value.slice(11, 16) : "—"; }
@@ -20,7 +21,28 @@ async function load() {
   const operators = new Set(data.days.flatMap(day => day.services.map(service => service.operatorName)));
   const selected = $("operator").value;
   $("operator").innerHTML = '<option value="">All</option>' + [...operators].sort().map(value => `<option ${value === selected ? "selected" : ""}>${esc(value)}</option>`).join("");
+  renderRecommendations();
   render();
+}
+
+function renderRecommendations() {
+  let html = "";
+  for (const day of data.days) {
+    if (!day.recommendations?.length) continue;
+    html += `<article class="recommend-day"><h3>${esc(dayLabel(day.date))}</h3><div>`;
+    for (const item of day.recommendations) {
+      const route = item.direction === "MORNING" ? "Morning" : "Evening";
+      if (item.status === "NO_CLAIM") {
+        html += `<div class="recommend-row no-action"><strong>${route}</strong><span>No claim</span></div>`;
+        continue;
+      }
+      const label = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "✓ Claimed" : "Review";
+      const detail = item.effectiveDelayMinutes == null ? label : `${item.effectiveDelayMinutes} min · ${label}`;
+      html += `<button class="recommend-row ${item.status}" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}</span></button>`;
+    }
+    html += "</div></article>";
+  }
+  $("recommendations").innerHTML = html || '<p class="empty">No stored days to recommend.</p>';
 }
 
 function render() {
@@ -97,22 +119,55 @@ async function claim(encodedId, undo) {
 
 function showNotice(message, error = false) { const notice = $("notice"); notice.hidden = false; notice.textContent = message; notice.style.background = error ? "#fee2e2" : "#e7f1ed"; }
 
-async function openRefresh() {
-  $("refreshPlan").textContent = "Checking what is missing…";
-  $("confirmRefresh").disabled = true;
-  $("refreshDialog").showModal();
-  const response = await fetch("/api/refresh-plan?days=10"); const plan = await response.json();
-  $("refreshPlan").innerHTML = `<strong>${plan.fetch.length} dates</strong> need collection (${plan.requestCount} RTT requests).<br>${plan.current.length} dates are already complete.${plan.uncatalogued.length ? `<br>${plan.uncatalogued.length} dates have no catalogue and will be skipped.` : ""}`;
-  $("confirmRefresh").disabled = !plan.fetch.length;
+function latestWeekday() {
+  const value = new Date();
+  while ([0, 6].includes(value.getDay())) value.setDate(value.getDate() - 1);
+  return isoDate(value.toISOString());
 }
 
-async function startRefresh(event) {
-  event.preventDefault(); $("confirmRefresh").disabled = true;
-  const response = await fetch("/api/refresh", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({days: 10})});
-  const job = await response.json(); $("refreshDialog").close();
+function nextFriday() {
+  const value = new Date();
+  value.setDate(value.getDate() + ((5 - value.getDay() + 7) % 7));
+  return isoDate(value.toISOString());
+}
+
+function openData() {
+  pendingOperation = null;
+  $("operationPlan").hidden = true;
+  $("runOperation").hidden = true;
+  $("dataDialog").showModal();
+}
+
+async function previewOperation(operation) {
+  const discovery = operation === "discover";
+  const payload = discovery
+    ? {endDate: $("discoverEnd").value, days: Number($("discoverDays").value), direction: $("discoverDirection").value}
+    : {endDate: $("collectEnd").value, days: Number($("collectDays").value), mode: $("collectMode").value};
+  const query = new URLSearchParams(payload).toString();
+  const response = await fetch(`/api/${discovery ? "discovery" : "collection"}-plan?${query}`);
+  const plan = await response.json();
+  if (!response.ok) return showNotice(plan.error, true);
+  pendingOperation = {operation, payload};
+  const count = discovery ? plan.dates.length : plan.dates.length;
+  const extras = discovery ? "" : `<br>${plan.completeDates.length} already complete; ${plan.uncataloguedDates.length} uncatalogued.`;
+  $("operationPlan").innerHTML = `<strong>${count} weekday${count === 1 ? "" : "s"}</strong> · ${plan.requestCount} RTT requests.${extras}`;
+  $("operationPlan").hidden = false;
+  $("runOperation").textContent = `Run ${operation}`;
+  $("runOperation").hidden = count === 0;
+}
+
+async function runOperation() {
+  if (!pendingOperation) return;
+  $("runOperation").disabled = true;
+  const {operation, payload} = pendingOperation;
+  const response = await fetch(`/api/${operation}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
+  const job = await response.json();
+  $("runOperation").disabled = false;
   if (!response.ok) return showNotice(job.error, true);
+  $("dataDialog").close();
   if (!job.id) return showNotice(job.message);
-  showNotice(`${job.message} (0/${job.total})`); pollJob(job.id);
+  showNotice(`${job.message} (0/${job.total})`);
+  pollJob(job.id);
 }
 
 async function pollJob(id) {
@@ -124,6 +179,11 @@ async function pollJob(id) {
 $("period").addEventListener("change", () => { const custom = $("period").value === "custom"; $("fromWrap").hidden = !custom; $("toWrap").hidden = !custom; if (!custom) load(); });
 for (const id of ["fromDate", "toDate"]) $(id).addEventListener("change", load);
 for (const id of ["direction", "operator", "status", "delay"]) $(id).addEventListener("change", render);
-$("refreshButton").addEventListener("click", openRefresh);
-$("confirmRefresh").addEventListener("click", startRefresh);
-const initial = dateRange(10); $("fromDate").value = initial[0]; $("toDate").value = initial[1]; load();
+$("refreshButton").addEventListener("click", openData);
+$("planDiscovery").addEventListener("click", () => previewOperation("discover"));
+$("planCollection").addEventListener("click", () => previewOperation("collect"));
+$("runOperation").addEventListener("click", runOperation);
+const initial = dateRange(10);
+$("fromDate").value = initial[0]; $("toDate").value = initial[1];
+$("discoverEnd").value = nextFriday(); $("collectEnd").value = latestWeekday();
+load();

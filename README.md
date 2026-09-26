@@ -75,7 +75,14 @@ Get-Content C:\Users\mitzb\code\delayrepay\logs\server.log -Tail 50
 
 The dashboard defaults to the last ten days and supports 30-day, complete-history, and custom ranges. It filters by direction, operator, and assessment status.
 
-`Refresh RTT` first shows the missing or incomplete dates and estimated request count. Confirmation collects only those weekdays. It never runs timetable discovery. Web refresh and scheduled collection share a lock and cannot run concurrently.
+The **What to claim** section selects the longest confidently claimable delay for each date and direction. This is conditional on that being the train actually travelled on; incomplete data is shown as `Needs review` rather than a definite recommendation.
+
+Use **Update data** to preview and run either operation from the dashboard:
+
+- **Discover timetable** refreshes the reusable service catalogue. The preview shows its bounded RTT request count.
+- **Collect running data** fetches missing/incomplete dates by default, or can explicitly recollect the selected range.
+
+Both run in the background with visible progress and share the same collection lock and RTT rate-limit backoff as the CLI.
 
 `Mark as claimed` is an acknowledgement only. It updates SQLite and does not submit anything to a train operator. Claim and undo changes persist after restart.
 
