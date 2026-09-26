@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import time
 from datetime import datetime
 from typing import Any
@@ -27,12 +28,15 @@ class RttClient:
         self.api_version = os.environ.get("RTT_API_VERSION", "2026-07-25")
         self.interval = int(os.environ.get("RTT_MIN_INTERVAL_MS", "1500")) / 1000
         self.timeout = int(os.environ.get("RTT_REQUEST_TIMEOUT_MS", "15000")) / 1000
+        self.max_retries = int(os.environ.get("RTT_RATE_LIMIT_RETRIES", "5"))
+        self.backoff_base = int(os.environ.get("RTT_RATE_LIMIT_WAIT_MS", "15000")) / 1000
+        self.backoff_max = int(os.environ.get("RTT_RATE_LIMIT_MAX_WAIT_MS", "120000")) / 1000
         self.next_request = 0.0
         self.access_expiry = 0.0
         if not self.access_token and not self.refresh_token:
             raise RttError("RTT is not configured; set RTT_ACCESS_TOKEN or RTT_REFRESH_TOKEN in .env")
 
-    def _request(self, path: str, token: str, retries: int = 2) -> Any:
+    def _request(self, path: str, token: str, attempt: int = 0) -> Any:
         wait = self.next_request - time.monotonic()
         if wait > 0:
             time.sleep(wait)
@@ -50,13 +54,22 @@ class RttClient:
                     return {"services": []}
                 return json.load(response)
         except HTTPError as error:
-            if error.code == 429 and retries:
-                delay = int(error.headers.get("Retry-After", os.environ.get("RTT_RATE_LIMIT_WAIT_MS", "10000")))
-                if delay > 1000:
-                    delay /= 1000
+            if error.code == 429 and attempt < self.max_retries:
+                retry_after = error.headers.get("Retry-After")
+                try:
+                    server_delay = float(retry_after) if retry_after else 0.0
+                except ValueError:
+                    server_delay = 0.0
+                exponential = min(self.backoff_max, self.backoff_base * (2 ** attempt))
+                delay = max(server_delay, exponential)
+                delay += random.uniform(0, min(2.0, delay * 0.1))
+                self.next_request = max(self.next_request, time.monotonic() + delay)
+                LOGGER.warning(
+                    "RTT rate limited; retry %d/%d in %.1f seconds",
+                    attempt + 1, self.max_retries, delay,
+                )
                 time.sleep(delay)
-                LOGGER.warning("RTT rate limited; retrying %s after %.1f seconds", endpoint, delay)
-                return self._request(path, token, retries - 1)
+                return self._request(path, token, attempt + 1)
             if error.code == 404:
                 raise RttError("RTT service not found") from error
             raise RttError(f"RTT request failed ({error.code})") from error

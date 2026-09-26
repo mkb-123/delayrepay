@@ -41,6 +41,8 @@ cp .env.example .env
 
 Put either `RTT_ACCESS_TOKEN` or `RTT_REFRESH_TOKEN` in `.env`. Never put a real token in `.env.example`; `.env` is ignored by Git.
 
+RTT calls are paced and automatically retry rate limits with exponential backoff. The defaults retry five times, starting at roughly 15 seconds and capping at two minutes. They can be adjusted with `RTT_MIN_INTERVAL_MS`, `RTT_RATE_LIMIT_RETRIES`, `RTT_RATE_LIMIT_WAIT_MS`, and `RTT_RATE_LIMIT_MAX_WAIT_MS`.
+
 ## Run the dashboard
 
 In WSL:
