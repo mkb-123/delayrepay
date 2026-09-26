@@ -8,7 +8,7 @@ from typing import Any
 from .assess import assess
 from .rtt import RttClient, RttError
 from .services import WINDOWS, in_window, normalize
-from .store import catalogue_path, daily_path, read_json, report_path, write_json
+from .store import Database, catalogue_path, read_json, write_json
 
 LOGGER = logging.getLogger("delayrepay.workflow")
 
@@ -137,25 +137,30 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
             LOGGER.warning("Could not collect %s: %s", unique, error)
             errors.append({"rttServiceId": unique, "error": str(error)})
     value = {"version": 1, "date": service_date, "collectedAt": _now(), "complete": not errors, "services": services, "errors": errors}
-    write_json(daily_path(root, service_date), value)
+    database = Database(root)
+    database.save_collection(value)
+    database.close()
     LOGGER.info("Saved %d services for %s with %d errors", len(services), service_date, len(errors))
     return value
 
 
-def load_claims(root: Path) -> dict[str, str]:
-    return read_json(root / "claims.json", {})
-
-
 def generate_report(root: Path, service_date: str, action_only: bool = False) -> tuple[str, list[dict[str, Any]]]:
-    daily = read_json(daily_path(root, service_date))
-    if not daily:
-        raise ValueError(f"No daily data for {service_date}. Run collect first.")
-    claims = load_claims(root)
-    services = daily.get("services", [])
+    database = Database(root)
+    report_data, rows = build_report_data(database, service_date, action_only)
+    database.close()
+    return write_latest_report(root, report_data), rows
+
+
+def build_report_data(database: Database, service_date: str, action_only: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    services = database.services_for_date(service_date)
+    if not services:
+        raise ValueError(f"No stored services for {service_date}. Run collect first.")
     LOGGER.info("Assessing %d stored services for %s", len(services), service_date)
     all_rows = []
+    assessed_at = _now()
     for service in services:
-        evaluation = assess(service, services, claims.get(service["serviceId"]))
+        evaluation = assess(service, services, database.claimed_at(service["serviceId"]))
+        database.save_assessment(service["serviceId"], assessed_at, evaluation)
         all_rows.append({**service, "assessment": evaluation})
     rows = all_rows
     if action_only:
@@ -169,7 +174,7 @@ def generate_report(root: Path, service_date: str, action_only: bool = False) ->
         "generatedAt": _now(),
         "date": service_date,
         "actionOnly": action_only,
-        "sourceComplete": daily.get("complete", True),
+        "sourceComplete": database.collection_complete(service_date),
         "summary": {
             "storedServices": len(services),
             "includedServices": len(rows),
@@ -184,17 +189,24 @@ def generate_report(root: Path, service_date: str, action_only: bool = False) ->
         },
         "services": all_rows,
     }
-    json_path = root / "reports" / f"{service_date}.json"
+    return report_data, rows
+
+
+def write_latest_report(root: Path, report_data: dict[str, Any]) -> str:
+    output = root / "output"
+    json_path = output / "latest.json"
+    markdown_path = output / "latest.md"
     write_json(json_path, report_data)
     # Markdown is deliberately rendered from the persisted JSON artifact.
     persisted = read_json(json_path)
-    text = render_report_markdown(persisted)
-    path = report_path(root, service_date)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    if persisted.get("days") is not None:
+        text = "\n\n---\n\n".join(render_report_markdown(item) for item in persisted["days"])
+    else:
+        text = render_report_markdown(persisted)
+    markdown_path.write_text(text, encoding="utf-8")
     LOGGER.info("Wrote report data %s", json_path)
-    LOGGER.info("Wrote Markdown report %s; classifications: %s", path, counts or {"SERVICES": 0})
-    return text, rows
+    LOGGER.info("Wrote Markdown report %s", markdown_path)
+    return text
 
 
 def render_report_markdown(report_data: dict[str, Any]) -> str:
@@ -225,22 +237,17 @@ def render_report_markdown(report_data: dict[str, Any]) -> str:
 
 def report_week(root: Path, week_start: str, action_only: bool = False) -> str:
     start = date.fromisoformat(week_start)
+    end = start + timedelta(days=4)
+    database = Database(root)
     reports = []
-    for offset in range(5):
-        current = (start + timedelta(days=offset)).isoformat()
-        if daily_path(root, current).exists():
-            generate_report(root, current, action_only)
-            reports.append(read_json(root / "reports" / f"{current}.json"))
+    for current in database.stored_dates(start.isoformat(), end.isoformat()):
+        report_data, _ = build_report_data(database, current, action_only)
+        reports.append(report_data)
+    database.close()
     if not reports:
         raise ValueError("No stored daily data in that week")
     combined = {"version": 1, "generatedAt": _now(), "type": "week", "weekStart": week_start, "actionOnly": action_only, "days": reports}
-    json_path = root / "reports" / f"week-{week_start}.json"
-    write_json(json_path, combined)
-    text = "\n\n---\n\n".join(render_report_markdown(item) for item in read_json(json_path)["days"])
-    path = root / "reports" / f"week-{week_start}.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    return text
+    return write_latest_report(root, combined)
 
 
 def report_lookback(root: Path, end_date: str, days: int, action_only: bool = False) -> str:
@@ -249,42 +256,34 @@ def report_lookback(root: Path, end_date: str, days: int, action_only: bool = Fa
     end = date.fromisoformat(end_date)
     start = end - timedelta(days=days - 1)
     LOGGER.info("Building %d-day report from %s to %s", days, start, end)
+    database = Database(root)
     reports = []
-    current = start
-    while current <= end:
-        service_date = current.isoformat()
-        if daily_path(root, service_date).exists():
-            generate_report(root, service_date, action_only)
-            reports.append(read_json(root / "reports" / f"{service_date}.json"))
-        current += timedelta(days=1)
+    for service_date in database.stored_dates(start.isoformat(), end.isoformat()):
+        report_data, _ = build_report_data(database, service_date, action_only)
+        reports.append(report_data)
+    database.close()
     if not reports:
         raise ValueError(f"No stored daily data from {start.isoformat()} to {end.isoformat()}")
     combined = {
         "version": 1, "generatedAt": _now(), "type": "lookback", "daysRequested": days,
         "startDate": start.isoformat(), "endDate": end_date, "actionOnly": action_only, "days": reports,
     }
-    json_path = root / "reports" / f"lookback-{days}-days-ending-{end_date}.json"
-    write_json(json_path, combined)
-    text = "\n\n---\n\n".join(render_report_markdown(item) for item in read_json(json_path)["days"])
-    path = root / "reports" / f"lookback-{days}-days-ending-{end_date}.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    LOGGER.info("Wrote combined report data %s", json_path)
-    LOGGER.info("Wrote combined Markdown report %s from %d stored days", path, len(reports))
-    return text
+    LOGGER.info("Rendering combined report from %d stored days", len(reports))
+    return write_latest_report(root, combined)
 
 
 def set_claim(root: Path, service_date: str, service_id: str, undo: bool) -> None:
-    daily = read_json(daily_path(root, service_date))
-    if not daily or service_id not in {item["serviceId"] for item in daily.get("services", [])}:
+    database = Database(root)
+    services = database.services_for_date(service_date)
+    if service_id not in {item["serviceId"] for item in services}:
+        database.close()
         raise ValueError("Service was not found in stored daily data")
-    claims = load_claims(root)
     if undo:
-        claims.pop(service_id, None)
+        database.set_claim(service_id, None)
     else:
-        services = daily.get("services", [])
         service = next(item for item in services if item["serviceId"] == service_id)
         if assess(service, services)["status"] != "POTENTIAL":
+            database.close()
             raise ValueError("Only a potential claim can be marked as claimed")
-        claims[service_id] = _now()
-    write_json(root / "claims.json", claims)
+        database.set_claim(service_id, _now())
+    database.close()

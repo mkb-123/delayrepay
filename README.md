@@ -22,7 +22,7 @@ Wait about a minute, then read the latest output:
 
 ```powershell
 Get-Content C:\Users\mitzb\code\delayrepay\data-store\scheduled-task.log -Tail 50
-Get-ChildItem C:\Users\mitzb\code\delayrepay\data-store\reports | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+Get-Content C:\Users\mitzb\code\delayrepay\data-store\output\latest.md
 ```
 
 The task also runs automatically at 19:00 every Monday–Friday. It uses WSL and plain Python; no AI model is involved.
@@ -37,7 +37,7 @@ python3 -m delayrepay report --date 2026-09-28
 python3 -m delayrepay report --date 2026-09-28 --lookback-days 14 --action-only
 ```
 
-The report is saved as `data-store/reports/2026-09-28.md`. Collection requires that weekday to exist in `data-store/service-catalogue.json` and that `.env` contains a valid RTT token.
+The current report is saved as `data-store/output/latest.json` and `latest.md`. Collection requires that weekday to exist in `data-store/service-catalogue.json` and that `.env` contains a valid RTT token.
 
 Every command prints timestamped progress to the terminal. Discovery shows lineup and candidate progress, collection shows each catalogue service, and reporting shows the number of assessments and output path. The Windows task captures the same output in `data-store/scheduled-task.log`. Authentication tokens are never included in logs.
 
@@ -91,7 +91,7 @@ python -m delayrepay collect --date 2026-09-28
 python -m delayrepay collect --date 2026-10-02 --lookback-days 14
 ```
 
-Collection uses the saved catalogue and makes one detail request per known train. It does not rediscover the timetable. Results are upserted to `data-store/daily/YYYY-MM-DD.json`, so rerunning a date replaces that date rather than creating duplicates.
+Collection uses the saved catalogue and makes one detail request per known train. It does not rediscover the timetable. Services are upserted into `data-store/delayrepay.sqlite`, so rerunning a date updates existing journeys rather than creating duplicates.
 
 ## 3. Generate a briefing
 
@@ -102,30 +102,30 @@ python -m delayrepay report --date 2026-09-28 --lookback-days 14
 python -m delayrepay report-week --week-start 2026-09-28
 ```
 
-Reports are written under `data-store/reports/` as matching `.json` and `.md` files. The structured JSON is written first and contains the services, calculations, alternatives, explanations, rule references, and summary counts. Markdown is then rendered from that saved JSON. This lets you build another visualisation directly from the report JSON without rerunning assessment. `--lookback-days 14` combines any stored dates in the 14 calendar days ending on `--date`; if `--date` is omitted, it ends today. It reads local files only and makes no RTT calls.
+Reporting queries SQLite and overwrites `data-store/output/latest.json` and `latest.md`. The structured JSON is written first and contains the services, calculations, alternatives, explanations, rule references, and summary counts. Markdown is then rendered from that saved JSON. This lets you build another visualisation directly from the report JSON without rerunning collection. `--lookback-days 14` combines stored dates in the 14 calendar days ending on `--date`; if `--date` is omitted, it ends today. It makes no RTT calls.
 
 `--lookback-days` is supported by all three stages, with `--lookup-days` accepted as an alias. Discovery uses only the latest occurrence of each weekday in the range, so a 14-day lookup performs at most five timetable snapshots. Collection processes every weekday in the range. Reporting combines every stored day in the range.
 
 ## Claim acknowledgement
 
-Copy a `serviceId` from the daily JSON and run:
+Copy a `serviceId` from `data-store/output/latest.json` and run:
 
 ```bash
 python -m delayrepay claim --date 2026-09-28 --service "SERVICE_ID"
 python -m delayrepay claim --date 2026-09-28 --service "SERVICE_ID" --undo
 ```
 
-Acknowledgements persist in `data-store/claims.json` and disappear from the outstanding count on the next report. Marking a journey as claimed does not submit a claim to an operator.
+Acknowledgements persist in SQLite independently of later service updates and disappear from the outstanding count on the next report. Marking a journey as claimed does not submit a claim to an operator.
 
 ## Stored data and rules
 
-Current Python state is plain JSON or Markdown under `data-store/`: the service catalogue, normalized daily records, reports, and claim acknowledgements. The original TypeScript archive, raw observations, old brief, and ingestion logs are retained under `legacy/data-store/`. This keeps the active tool local and inspectable while separating its data from the previous implementation.
+The service catalogue remains inspectable JSON. Operational services, collection runs, assessments, and claims live in the local SQLite database at `data-store/delayrepay.sqlite`. Generated `latest.json` and `latest.md` are replaceable views. The database and generated output are ignored by Git; back up the SQLite file separately. Previous JSON operational data and the original TypeScript data are retained under `legacy/`.
 
 The current Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) rules live in `python/delayrepay/rules.py`, including official sources and verification dates. Ambiguous cancellations, missing arrivals, unsupported operators, and journeys with a potentially earlier alternative are classified as `Needs review`.
 
 ## Scheduling
 
-The repository includes `scripts/daily-brief.ps1` for Windows Task Scheduler. The local task runs through WSL at 19:00 every weekday, collects the current day once, then produces an action-only report covering the last 10 calendar days. It writes reports under `data-store/reports/` and appends command output to `data-store/scheduled-task.log`. Do not schedule `discover`; rerun it only when you want to refresh the catalogue.
+The repository includes `scripts/daily-brief.ps1` for Windows Task Scheduler. The local task runs through WSL at 19:00 every weekday, collects the current day once, then produces an action-only report covering the last 10 calendar days. It overwrites `data-store/output/latest.json` and `latest.md`, and appends progress to `data-store/scheduled-task.log`. Do not schedule `discover`; rerun it only when you want to refresh the catalogue.
 
 Tests are intentionally deferred while the catalogue and report shapes are being finalised. The current no-network check is:
 
