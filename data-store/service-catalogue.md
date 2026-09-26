@@ -1,6 +1,6 @@
 # Relevant service catalogue
 
-Updated: 2026-09-26T16:44:33.976630Z
+Updated: 2026-09-26T19:58:20.536423Z
 
 | Day | Direction | Train | Operator | Journey |
 |---|---|---:|---|---|
@@ -25,6 +25,7 @@ Updated: 2026-09-26T16:44:33.976630Z
 | Mon | Morning | 07:25 | Avanti West Coast | MKC → EUS (08:00) |
 | Mon | Morning | 07:29 | London Northwestern Railway | MKC → EUS (08:05) |
 | Mon | Morning | 07:35 | London Northwestern Railway | MKC → EUS (08:18) |
+| Mon | Morning | 07:46 | London Northwestern Railway | MKC → EUS (08:21) |
 | Mon | Morning | 07:46 | West Midlands Railway | MKC → EUS (08:21) |
 | Tue | Evening | 16:43 | Avanti West Coast | EUS → MKC (17:14) |
 | Tue | Evening | 16:46 | London Northwestern Railway | EUS → MKC (17:18) |
@@ -56,15 +57,15 @@ Updated: 2026-09-26T16:44:33.976630Z
 | Wed | Evening | 17:26 | London Northwestern Railway | EUS → MKC (18:07) |
 | Wed | Evening | 17:46 | London Northwestern Railway | EUS → MKC (18:18) |
 | Wed | Evening | 17:56 | London Northwestern Railway | EUS → MKC (18:37) |
-| Wed | Morning | 06:27 | Avanti West Coast | MKC → EUS (07:03) |
-| Wed | Morning | 06:32 | London Northwestern Railway | MKC → EUS (07:10) |
+| Wed | Morning | 06:27 | Avanti West Coast | MKC → EUS (07:04) |
+| Wed | Morning | 06:35 | London Northwestern Railway | MKC → EUS (07:13) |
 | Wed | Morning | 06:42 | London Northwestern Railway | MKC → EUS (07:21) |
 | Wed | Morning | 06:43 | Avanti West Coast | MKC → EUS (07:18) |
 | Wed | Morning | 06:49 | London Northwestern Railway | MKC → EUS (07:24) |
 | Wed | Morning | 06:54 | Avanti West Coast | MKC → EUS (07:27) |
 | Wed | Morning | 06:56 | London Northwestern Railway | MKC → EUS (07:38) |
 | Wed | Morning | 06:59 | Avanti West Coast | MKC → EUS (07:31) |
-| Wed | Morning | 07:07 | London Northwestern Railway | MKC → EUS (07:50) |
+| Wed | Morning | 07:07 | London Northwestern Railway | MKC → EUS (07:51) |
 | Wed | Morning | 07:17 | Avanti West Coast | MKC → EUS (07:53) |
 | Wed | Morning | 07:25 | Avanti West Coast | MKC → EUS (08:00) |
 | Wed | Morning | 07:29 | London Northwestern Railway | MKC → EUS (08:05) |
