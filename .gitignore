@@ -14,5 +14,6 @@ artifacts/
 .venv/
 /delayrepay/
 __pycache__/
-data-store/*.sqlite*
+data-store/*.sqlite-wal
+data-store/*.sqlite-shm
 data-store/output/

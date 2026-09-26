@@ -119,7 +119,7 @@ Acknowledgements persist in SQLite independently of later service updates and di
 
 ## Stored data and rules
 
-The service catalogue remains inspectable JSON. Operational services, collection runs, assessments, and claims live in the local SQLite database at `data-store/delayrepay.sqlite`. Generated `latest.json` and `latest.md` are replaceable views. The database and generated output are ignored by Git; back up the SQLite file separately. Previous JSON operational data and the original TypeScript data are retained under `legacy/`.
+The service catalogue remains inspectable JSON. Operational services, collection runs, assessments, and claims live in `data-store/delayrepay.sqlite`. The database is tracked in Git as a private-repository backup; SQLite WAL and shared-memory files remain ignored. Generated `latest.json` and `latest.md` are replaceable views and remain ignored. Previous JSON operational data and the original TypeScript data are retained under `legacy/`.
 
 The current Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) rules live in `python/delayrepay/rules.py`, including official sources and verification dates. Ambiguous cancellations, missing arrivals, unsupported operators, and journeys with a potentially earlier alternative are classified as `Needs review`.
 
