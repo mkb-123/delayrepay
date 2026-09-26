@@ -1,158 +1,91 @@
-# MKC EUS Delay Repay Tracker
+# MKC ↔ EUS Delay Repay
 
-Local-first tracker for weekday rail services between Milton Keynes Central and London Euston.
+A private, local Python tool that tracks weekday trains between Milton Keynes Central and London Euston and produces a short Delay Repay briefing.
 
-The normal workflow is a local Markdown brief. It can optionally fetch RTT running data on demand, retain the rail history in `data-store/`, and publish a static viewer to GitHub Pages. Clicking **Mark as claimed** is only a local acknowledgement; it does not submit anything to a train operator.
+It separates three jobs so routine collection stays cheap:
 
-## Scope
+1. `discover` finds the relevant timetable once and saves a service catalogue.
+2. `collect` requests only those known services for a date.
+3. `report` reads stored data and makes no RTT calls.
 
-- Morning: MKC to EUS, weekday scheduled departures from 06:00 to 08:00.
-- Evening: EUS to MKC, weekday scheduled departures from 16:30 to 18:00.
-- Operators currently encoded from official Delay Repay terms: Avanti West Coast and London Northwestern Railway.
-- Ticket profile default: any permitted operator.
-- No compensation amount calculation, account system, notifications, or automatic claim submission.
+The earlier Next.js viewer remains in the repository, but the Python CLI is now the supported workflow.
 
-## Prerequisites
+## Requirements
 
-- Node.js 22 or newer.
-- pnpm 11.
-- RTT API credentials for the current Realtime Trains API.
-- A GitHub repository with Pages enabled from GitHub Actions.
+- Python 3.11 or newer
+- A current Realtime Trains API access or refresh token
 
-## Local Setup
+From WSL, create and activate a virtual environment, then install the local package:
 
-Install dependencies:
-
-```powershell
-pnpm install
+```bash
+cd /mnt/c/Users/mitzb/code/delayrepay
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
 ```
 
-Create a local environment file from the example:
+Copy `.env.example` to `.env` and add either `RTT_ACCESS_TOKEN` or `RTT_REFRESH_TOKEN`. `.env` is ignored by Git. Credentials are never written to stored data or logs.
 
-```powershell
-Copy-Item .env.example .env
+## 1. Discover relevant trains
+
+Run this manually for a representative date for each weekday. Discovery searches both station lineups and checks service details. Running it again for the same weekday replaces that weekday’s catalogue entries.
+
+```bash
+python -m delayrepay discover --date 2026-09-28
 ```
 
-For local collection, put one RTT token in `.env`:
+Repeat for Tuesday through Friday if their timetables differ. Results are saved to `data-store/service-catalogue.json` and a readable `data-store/service-catalogue.md`. Only direct passenger services in the configured windows and scheduled to take no more than 60 minutes are retained.
 
-- `RTT_ACCESS_TOKEN`
-- `RTT_REFRESH_TOKEN`
+## 2. Collect a day
 
-The `.env` file is ignored by Git. The static dashboard does not read RTT tokens; local tokens are used only by the collection script.
+Preview the exact RTT detail calls without using the API:
 
-Run checks:
-
-```powershell
-pnpm test
-pnpm typecheck
-pnpm build
+```bash
+python -m delayrepay collect --date 2026-09-28 --dry-run
 ```
 
-Run the local development server:
+Collect the running data:
 
-```powershell
-pnpm dev
+```bash
+python -m delayrepay collect --date 2026-09-28
 ```
 
-Generate a local Delay Repay brief from retained data:
+Collection uses the saved catalogue and makes one detail request per known train. It does not rediscover the timetable. Results are upserted to `data-store/daily/YYYY-MM-DD.json`, so rerunning a date replaces that date rather than creating duplicates.
 
-```powershell
-pnpm brief
+## 3. Generate a briefing
+
+```bash
+python -m delayrepay report --date 2026-09-28
+python -m delayrepay report --date 2026-09-28 --action-only
+python -m delayrepay report-week --week-start 2026-09-28
 ```
 
-Fetch current RTT evidence and then generate the brief. This is the command that calls RTT:
+Reports are written under `data-store/reports/`. The normal report shows only the train, destination delay, and claim classification. Daily JSON retains the underlying times and RTT identifiers.
 
-```powershell
-pnpm brief --fetch
+## Claim acknowledgement
+
+Copy a `serviceId` from the daily JSON and run:
+
+```bash
+python -m delayrepay claim --date 2026-09-28 --service "SERVICE_ID"
+python -m delayrepay claim --date 2026-09-28 --service "SERVICE_ID" --undo
 ```
 
-Write the brief to a file you can open:
+Acknowledgements persist in `data-store/claims.json` and disappear from the outstanding count on the next report. Marking a journey as claimed does not submit a claim to an operator.
 
-```powershell
-pnpm brief 2026-09-25 --output data-store/brief-2026-09-25.md
-```
+## Stored data and rules
 
-For a cheap live smoke test, cap service-detail calls:
+All retained state is plain JSON or Markdown under `data-store/`. This keeps the tool local, inspectable, and independent of PostgreSQL or GitHub Pages. Back up that directory if the history matters to you.
 
-```powershell
-pnpm brief --fetch 2026-09-25 --max-details 5
-```
+The current Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) rules live in `python/delayrepay/rules.py`, including official sources and verification dates. Ambiguous cancellations, missing arrivals, unsupported operators, and journeys with a potentially earlier alternative are classified as `Needs review`.
 
-Preview the planned fetch without calling RTT or changing stored data:
+## Scheduling
 
-```powershell
-pnpm brief --fetch --dry-run
-```
+Use Windows Task Scheduler, cron, or another job runner to execute `collect` after each monitoring window, followed by `report`. Do not schedule `discover`; rerun it only when you want to refresh the catalogue.
 
-## Data Collection
+Tests are intentionally deferred while the catalogue and report shapes are being finalised. The current no-network check is:
 
-Collection now discovers likely route services by intersecting station lineups: a service must appear at both monitored endpoints before the script fetches its detail record. This uses more lightweight lineup calls than the first prototype, but avoids fetching details for unrelated services that merely depart MKC or EUS in the monitored windows.
-
-Collect rail data locally for the latest relevant weekday. Prefer `pnpm brief --fetch` unless you only want to refresh stored data:
-
-```powershell
-pnpm ingest
-```
-
-Backfill a specific weekday:
-
-```powershell
-$env:INGEST_DATE = "2026-09-25"
-pnpm ingest
-```
-
-Collection writes to `data-store/`, which is intentionally ignored by Git. The static dashboard is built from `public/data/archive.json`, produced by:
-
-```powershell
-pnpm publish:data
-```
-
-## GitHub Pages Deployment
-
-Enable Pages using **GitHub Actions** as the source.
-
-The workflow in `.github/workflows/pages.yml`:
-
-- runs tests;
-- builds the static Next.js dashboard;
-- deploys the `out/` directory to Pages.
-
-GitHub Actions does not call RTT. If you want fresh data in the static dashboard, fetch locally first, then run `pnpm publish:data` and deploy.
-
-## Claim Acknowledgements
-
-Claim acknowledgements are stored in browser `localStorage`. They persist after refresh and normal browser restarts on that device. They are not synced to GitHub or any server.
-
-Use **Backup** and **Import** in the dashboard to preserve acknowledgements before clearing browser storage or moving device.
-
-## Compensation Rules
-
-The rule engine is separate from ingestion and UI code:
-
-- `src/domain/rules.ts` stores operator rule metadata, source URLs, and verification date.
-- `src/domain/assess.ts` classifies services as `NO_CLAIM`, `POTENTIAL`, or `NEEDS_REVIEW`.
-- `src/domain/claims.ts` handles local `CLAIMED` acknowledgement state.
-
-Rules were verified on 2026-09-25 from official operator pages. Update rule versions when operator terms change.
-
-## Official Claim Links
-
-- Avanti West Coast: <https://delayrepay.avantiwestcoast.co.uk/>
-- London Northwestern Railway: <https://londonnorthwesternrailway.delayrepaycompensation.com/>
-
-## Tests
-
-The automated tests cover:
-
-- on-time, 5-minute, 14-minute, exactly 15-minute, 15+ minute, and 30+ minute delays;
-- cancellations;
-- earlier-arriving valid alternatives;
-- cross-operator alternatives under ticket restrictions;
-- missing and incomplete RTT data;
-- duplicate-safe ingestion and status-preserving claim logic boundaries.
-
-Run:
-
-```powershell
-pnpm test
+```bash
+python -m compileall -q python
+python -m delayrepay --help
 ```

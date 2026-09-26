@@ -11,4 +11,6 @@ public/data/
 artifacts/
 .local-db/
 .test-db/
-delayrepay/
+.venv/
+/delayrepay/
+__pycache__/
