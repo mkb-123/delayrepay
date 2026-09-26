@@ -7,7 +7,7 @@ from typing import Any
 
 from .domain.assessment import assess
 from .ingestion.rtt import RttClient, RttError
-from .ingestion.services import WINDOWS, in_window, normalize
+from .ingestion.services import WINDOWS, in_window, minutes_between, normalize
 from .storage.sqlite import Database, catalogue_path, read_json, write_json
 
 LOGGER = logging.getLogger("delayrepay.workflow")
@@ -31,6 +31,38 @@ def _later(clock: str, minutes: int) -> str:
 
 def _lineup_time(item: dict[str, Any], movement: str) -> str | None:
     return ((item.get("temporalData") or {}).get(movement) or {}).get("scheduleAdvertised")
+
+
+def _service_from_lineups(entry: dict[str, Any], origin: dict[str, Any], destination: dict[str, Any], collected_at: str) -> dict[str, Any]:
+    metadata = origin.get("scheduleMetadata") or {}
+    departure = (origin.get("temporalData") or {}).get("departure") or {}
+    arrival = (destination.get("temporalData") or {}).get("arrival") or {}
+    scheduled_departure = departure.get("scheduleAdvertised")
+    scheduled_arrival = arrival.get("scheduleAdvertised")
+    actual_departure = None if departure.get("realtimeNoReport") else departure.get("realtimeActual")
+    actual_arrival = None if arrival.get("realtimeNoReport") else arrival.get("realtimeActual")
+    origin_temporal = origin.get("temporalData") or {}
+    destination_temporal = destination.get("temporalData") or {}
+    cancelled = bool(
+        departure.get("isCancelled") or arrival.get("isCancelled")
+        or origin_temporal.get("displayAs") in {"CANCELLED", "DIVERTED"}
+        or destination_temporal.get("displayAs") in {"CANCELLED", "DIVERTED"}
+    )
+    issues = [] if scheduled_departure and scheduled_arrival else ["Advertised timetable is incomplete."]
+    operator = metadata.get("operator") or {}
+    unique = metadata.get("uniqueIdentity")
+    return {
+        "serviceId": f"{unique}:{entry['direction']}", "rttServiceId": unique,
+        "rttIdentity": metadata.get("identity", entry.get("rttIdentity")),
+        "serviceDate": scheduled_departure[:10] if scheduled_departure else metadata.get("departureDate"),
+        "operatorCode": operator.get("code", entry.get("operatorCode", "UNKNOWN")),
+        "operatorName": operator.get("name", entry.get("operatorName", "Unknown operator")),
+        "direction": entry["direction"], "origin": entry["origin"], "destination": entry["destination"],
+        "scheduledDeparture": scheduled_departure, "actualDeparture": actual_departure,
+        "scheduledArrival": scheduled_arrival, "actualArrival": actual_arrival, "cancelled": cancelled,
+        "rawDelayMinutes": None if cancelled else minutes_between(actual_arrival, scheduled_arrival),
+        "dataIssues": issues, "collectedAt": collected_at,
+    }
 
 
 def _save_catalogue(root: Path, service_date: str, found: list[dict[str, Any]], directions: set[str]) -> None:
@@ -144,8 +176,16 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
     if not catalogue:
         raise ValueError("No service catalogue. Run discover first.")
     entries = [item for item in catalogue.get("services", []) if item.get("weekday") == weekday]
-    planned = [f"gb-nr:{item['rttIdentity']}:{service_date}" for item in entries]
-    LOGGER.info("Collection for %s: %d catalogue services%s", service_date, len(planned), " (dry run)" if dry_run else "")
+    directions = sorted({item["direction"] for item in entries})
+    planned = [
+        {"direction": direction, "station": station, "from": start, "to": end}
+        for direction in directions
+        for station, start, end in (
+            (WINDOWS[direction]["origin"], WINDOWS[direction]["from"], WINDOWS[direction]["to"]),
+            (WINDOWS[direction]["destination"], WINDOWS[direction]["from"], _later(WINDOWS[direction]["to"], 90)),
+        )
+    ]
+    LOGGER.info("Collection for %s: %d lineup requests covering %d catalogue services%s", service_date, len(planned), len(entries), " (dry run)" if dry_run else "")
     if dry_run:
         return {"date": service_date, "plannedRequests": planned, "requestCount": len(planned)}
     if not entries:
@@ -155,15 +195,25 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
         }
     services, errors = [], []
     assert client is not None
-    for index, (entry, unique) in enumerate(zip(entries, planned), 1):
-        LOGGER.info("Collecting service %d/%d: %s %s", index, len(planned), entry["scheduledDeparture"], entry["operatorName"])
+    for direction in directions:
+        window = WINDOWS[direction]
+        LOGGER.info("Loading %s origin and destination lineups", direction.lower())
         try:
-            service = normalize(client.service(unique), entry["direction"], _now())
-            if service and in_window(service):
-                services.append(service)
+            origin_line = client.lineup(window["origin"], service_date, window["from"], window["to"])
+            destination_line = client.lineup(window["destination"], service_date, window["from"], _later(window["to"], 90))
         except RttError as error:
-            LOGGER.warning("Could not collect %s: %s", unique, error)
-            errors.append({"rttServiceId": unique, "error": str(error)})
+            errors.append({"direction": direction, "error": str(error)})
+            continue
+        origins = {item.get("scheduleMetadata", {}).get("identity"): item for item in origin_line.get("services", [])}
+        destinations = {item.get("scheduleMetadata", {}).get("identity"): item for item in destination_line.get("services", [])}
+        for entry in (item for item in entries if item["direction"] == direction):
+            identity = entry["rttIdentity"]
+            if identity not in origins or identity not in destinations:
+                errors.append({"rttIdentity": identity, "error": "Service was not present at both monitored stations."})
+                continue
+            service = _service_from_lineups(entry, origins[identity], destinations[identity], _now())
+            if in_window(service):
+                services.append(service)
     value = {"version": 1, "date": service_date, "collectedAt": _now(), "complete": not errors, "services": services, "errors": errors}
     with Database(root) as database:
         database.save_collection(value)

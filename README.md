@@ -112,6 +112,8 @@ Collect data:
 .venv/bin/delayrepay collect --date 2026-10-02 --lookback-days 10
 ```
 
+Collection joins two station lineups per direction and upserts the matching catalogue services into SQLite. A fully catalogued weekday uses four RTT requests regardless of how many trains run. Missing or ambiguous lineup evidence remains incomplete and is never invented.
+
 ### 3. Generate optional files
 
 The dashboard reads SQLite directly. JSON and Markdown remain useful portable outputs:
