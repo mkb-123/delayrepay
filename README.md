@@ -1,8 +1,8 @@
 # MKC EUS Delay Repay Tracker
 
-Static, GitHub Pages friendly tracker for weekday rail services between Milton Keynes Central and London Euston.
+Local-first tracker for weekday rail services between Milton Keynes Central and London Euston.
 
-The app collects RTT running data in GitHub Actions, retains the rail history on a `rail-data` branch, publishes a static Next.js dashboard to GitHub Pages, and stores personal claim acknowledgements in the browser. Clicking **Mark as claimed** is only a local acknowledgement; it does not submit anything to a train operator.
+The normal workflow is a local Markdown brief. It can optionally fetch RTT running data on demand, retain the rail history in `data-store/`, and publish a static viewer to GitHub Pages. Clicking **Mark as claimed** is only a local acknowledgement; it does not submit anything to a train operator.
 
 ## Scope
 
@@ -60,15 +60,21 @@ Generate a local Delay Repay brief from retained data:
 pnpm brief
 ```
 
-Fetch current RTT evidence and then generate the brief:
+Fetch current RTT evidence and then generate the brief. This is the command that calls RTT:
 
 ```powershell
 pnpm brief --fetch
 ```
 
+Preview the planned fetch without calling RTT or changing stored data:
+
+```powershell
+pnpm brief --fetch --dry-run
+```
+
 ## Data Collection
 
-Collect rail data locally for the latest relevant weekday:
+Collect rail data locally for the latest relevant weekday. Prefer `pnpm brief --fetch` unless you only want to refresh stored data:
 
 ```powershell
 pnpm ingest
@@ -89,22 +95,15 @@ pnpm publish:data
 
 ## GitHub Pages Deployment
 
-For scheduled collection on GitHub, add one repository secret:
-
-- `RTT_ACCESS_TOKEN` or `RTT_REFRESH_TOKEN`
-
 Enable Pages using **GitHub Actions** as the source.
 
 The workflow in `.github/workflows/pages.yml`:
 
 - runs tests;
-- opens or creates the durable `rail-data` branch;
-- collects current RTT evidence;
-- commits `archive.json`, retained observations, and run logs to `rail-data`;
 - builds the static Next.js dashboard;
 - deploys the `out/` directory to Pages.
 
-Scheduled GitHub Actions can be delayed or skipped by GitHub. The dashboard shows collection status and keeps the last retained archive rather than inventing missing rail data.
+GitHub Actions does not call RTT. If you want fresh data in the static dashboard, fetch locally first, then run `pnpm publish:data` and deploy.
 
 ## Claim Acknowledgements
 

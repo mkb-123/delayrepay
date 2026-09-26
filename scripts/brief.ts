@@ -10,6 +10,7 @@ import type { LocalRecords } from "../src/domain/claims";
 const args = new Set(process.argv.slice(2));
 const explicitDate = process.argv.slice(2).find(arg => /^\d{4}-\d{2}-\d{2}$/.test(arg)) ?? process.env.BRIEF_DATE;
 const fetchLatest = args.has("--fetch");
+const dryRun = args.has("--dry-run") || args.has("--plan");
 const outputPath = valueAfter("--output");
 const dataDir = resolve(process.env.DATA_DIR || "data-store");
 const ackPath = resolve(process.env.ACK_FILE || `${dataDir}/acknowledgements.json`);
@@ -22,9 +23,10 @@ if (explicitDate && (!isDate(explicitDate) || !weekday(explicitDate) || explicit
 
 const dates = explicitDate ? [explicitDate] : recentWeekdays(today, 1);
 
-if (fetchLatest) {
-  const runs = await ingest(dataDir, dates);
+if (fetchLatest || dryRun) {
+  const runs = await ingest(dataDir, dates, undefined, { dryRun });
   for (const run of runs) console.error(`${run.serviceDate}: ${run.status} (${run.servicesUpdated} service updates) ${run.message}`);
+  if (dryRun) process.exit(0);
 }
 
 const archive = await loadArchive(dataDir);

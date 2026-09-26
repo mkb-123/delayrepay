@@ -9,6 +9,7 @@ export interface StoredService {
 export interface RunRecord {
   id: string; serviceDate: string; startedAt: string; finishedAt: string;
   status: "SUCCESS" | "PARTIAL" | "FAILED"; servicesUpdated: number; message: string;
+  lineupRequests?: number; detailRequests?: number; plannedOnly?: boolean;
 }
 export interface Archive {
   schemaVersion: 1;
