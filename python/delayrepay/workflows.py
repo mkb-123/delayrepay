@@ -29,6 +29,10 @@ def _later(clock: str, minutes: int) -> str:
     return value.strftime("%H:%M")
 
 
+def _lineup_time(item: dict[str, Any], movement: str) -> str | None:
+    return ((item.get("temporalData") or {}).get(movement) or {}).get("scheduleAdvertised")
+
+
 def _save_catalogue(root: Path, service_date: str, found: list[dict[str, Any]], directions: set[str]) -> None:
     weekday = _weekday(service_date)
     existing = read_json(catalogue_path(root), {"services": []})
@@ -57,21 +61,45 @@ def discover(root: Path, service_date: str, client: RttClient, direction: str = 
         LOGGER.info("Loading %s origin and destination lineups", current_direction.lower())
         origin_line = client.lineup(window["origin"], service_date, window["from"], window["to"])
         destination_line = client.lineup(window["destination"], service_date, window["from"], _later(window["to"], 90))
-        origin_ids = {item.get("scheduleMetadata", {}).get("uniqueIdentity") for item in origin_line.get("services", [])}
-        destination_ids = {item.get("scheduleMetadata", {}).get("uniqueIdentity") for item in destination_line.get("services", [])}
-        candidates = sorted((origin_ids & destination_ids) - {None})
-        LOGGER.info("Checking %d shared %s service candidates", len(candidates), current_direction.lower())
-        for index, unique in enumerate(candidates, 1):
-            LOGGER.info("Checking candidate %d/%d: %s", index, len(candidates), unique)
-            service = normalize(client.service(unique), current_direction, _now())
-            if not service or not in_window(service):
+        origins = {
+            item.get("scheduleMetadata", {}).get("uniqueIdentity"): item
+            for item in origin_line.get("services", [])
+            if item.get("scheduleMetadata", {}).get("uniqueIdentity")
+        }
+        destinations = {
+            item.get("scheduleMetadata", {}).get("uniqueIdentity"): item
+            for item in destination_line.get("services", [])
+            if item.get("scheduleMetadata", {}).get("uniqueIdentity")
+        }
+        candidates = sorted(origins.keys() & destinations.keys())
+        LOGGER.info("Joining %d shared %s service candidates without detail calls", len(candidates), current_direction.lower())
+        for unique in candidates:
+            origin_item = origins[unique]
+            destination_item = destinations[unique]
+            metadata = origin_item.get("scheduleMetadata") or {}
+            scheduled_departure = _lineup_time(origin_item, "departure")
+            scheduled_arrival = _lineup_time(destination_item, "arrival")
+            duration = None
+            if scheduled_departure and scheduled_arrival:
+                duration = int((datetime.fromisoformat(scheduled_arrival.replace("Z", "+00:00")) - datetime.fromisoformat(scheduled_departure.replace("Z", "+00:00"))).total_seconds() // 60)
+            if (
+                metadata.get("namespace") != "gb-nr"
+                or metadata.get("modeType") != "TRAIN"
+                or metadata.get("inPassengerService") is not True
+                or not scheduled_departure
+                or not scheduled_arrival
+                or not (window["from"] <= scheduled_departure[11:16] <= window["to"])
+                or duration is None
+                or not (0 <= duration <= 60)
+            ):
                 continue
-            LOGGER.info("Retained %s %s %s", service["scheduledDeparture"][11:16], service["operatorName"], current_direction.lower())
+            operator = metadata.get("operator") or {}
+            LOGGER.info("Retained %s %s %s", scheduled_departure[11:16], operator.get("name", "Unknown operator"), current_direction.lower())
             found.append({
-                "rttIdentity": service["rttIdentity"], "weekday": weekday, "direction": current_direction,
-                "origin": service["origin"], "destination": service["destination"],
-                "scheduledDeparture": service["scheduledDeparture"][11:16], "scheduledArrival": service["scheduledArrival"][11:16],
-                "operatorCode": service["operatorCode"], "operatorName": service["operatorName"],
+                "rttIdentity": metadata.get("identity"), "weekday": weekday, "direction": current_direction,
+                "origin": window["origin"], "destination": window["destination"],
+                "scheduledDeparture": scheduled_departure[11:16], "scheduledArrival": scheduled_arrival[11:16],
+                "operatorCode": operator.get("code", "UNKNOWN"), "operatorName": operator.get("name", "Unknown operator"),
                 "discoveredFrom": service_date,
             })
     _save_catalogue(root, service_date, found, selected)

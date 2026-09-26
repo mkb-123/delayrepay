@@ -83,7 +83,7 @@ The dashboard defaults to the last ten days and supports 30-day, complete-histor
 
 ### 1. Discover relevant trains occasionally
 
-Discovery is the expensive step and is never scheduled automatically:
+Discovery is never scheduled automatically. It joins the origin and destination station lineups without fetching every service detail, so a full five-weekday refresh uses 20 RTT lineup requests:
 
 ```bash
 .venv/bin/delayrepay discover --date 2026-09-28
