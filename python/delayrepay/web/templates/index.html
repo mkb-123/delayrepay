@@ -43,8 +43,16 @@
         <select id="status"><option value="">All</option><option value="POTENTIAL">Potential claim</option><option value="NEEDS_REVIEW">Needs review</option><option value="CLAIMED">Claimed</option><option value="NO_CLAIM">No claim</option></select>
       </label>
       <label>Delay
-        <select id="delay"><option value="">All</option><option value="15">Over 15 min</option><option value="30">Over 30 min</option><option value="60">Over 60 min</option></select>
+        <select id="delay"><option value="">All</option><option value="15" selected>15+ min / cancelled</option><option value="30">30+ min / cancelled</option><option value="60">60+ min / cancelled</option></select>
       </label>
+    </section>
+
+    <section class="legend" aria-label="Delay heat map legend">
+      <span><i class="heat-dot heat-ok"></i>Under 15</span>
+      <span><i class="heat-dot heat-15"></i>15–29</span>
+      <span><i class="heat-dot heat-30"></i>30–59</span>
+      <span><i class="heat-dot heat-60"></i>60+</span>
+      <span><i class="heat-dot heat-cancelled"></i>Cancelled</span>
     </section>
 
     <div id="notice" class="notice" hidden></div>

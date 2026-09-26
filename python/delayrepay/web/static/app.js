@@ -36,7 +36,7 @@ function render() {
       (!direction || s.direction === direction) &&
       (!operator || s.operatorName === operator) &&
       (!status || s.assessment.status === status) &&
-      (delay === null || (s.rawDelayMinutes != null && s.rawDelayMinutes > delay))
+      (delay === null || s.cancelled || (s.rawDelayMinutes != null && s.rawDelayMinutes >= delay))
     );
     if (!services.length) continue;
     html += `<article class="day"><div class="day-heading"><h2>${esc(day.date)}</h2><span>${day.sourceComplete ? "Complete" : "Incomplete collection"}</span></div>`;
@@ -55,12 +55,13 @@ function card(service) {
   const a = service.assessment;
   const labels = {POTENTIAL: "Potential claim", NEEDS_REVIEW: "Needs review", CLAIMED: "✓ Claimed", NO_CLAIM: "No claim"};
   const delay = service.cancelled ? "Cancelled" : service.rawDelayMinutes == null ? "Unknown" : `${Math.max(0, service.rawDelayMinutes)} min`;
+  const heat = service.cancelled ? "heat-cancelled" : service.rawDelayMinutes == null ? "heat-unknown" : service.rawDelayMinutes >= 60 ? "heat-60" : service.rawDelayMinutes >= 30 ? "heat-30" : service.rawDelayMinutes >= 15 ? "heat-15" : "heat-ok";
   const alternatives = a.alternativesConsidered?.length ? `<p><strong>Alternatives considered</strong></p><ul>${a.alternativesConsidered.map(x => `<li>${clock(x.actualDeparture)} ${esc(x.operator)} → ${clock(x.actualArrival)} (${x.estimatedDelayMinutes} min impact)</li>`).join("")}</ul>` : "<p>No applicable recorded alternative was found.</p>";
   let actions = "";
   if (a.status === "POTENTIAL") actions += `<button onclick="claim('${encodeURIComponent(service.serviceId)}', false)">Mark as claimed</button>`;
   if (a.status === "CLAIMED") actions += `<button class="secondary" onclick="claim('${encodeURIComponent(service.serviceId)}', true)">Undo</button>`;
   if (a.claimUrl && ["POTENTIAL", "CLAIMED"].includes(a.status)) actions += `<a href="${esc(a.claimUrl)}" target="_blank" rel="noopener">Claim with ${esc(a.ruleOperatorName)} →</a>`;
-  return `<article class="card"><div class="card-top"><div><div class="train">${clock(service.scheduledDeparture)}</div><div class="operator">${esc(service.operatorName)}</div></div><div class="delay">${delay}</div></div><span class="status ${a.status}">${labels[a.status]}</span><details><summary>View details</summary><p>${esc(a.explanation)}</p><dl class="facts"><dt>Scheduled</dt><dd>${clock(service.scheduledDeparture)} → ${clock(service.scheduledArrival)}</dd><dt>Actual</dt><dd>${clock(service.actualDeparture)} → ${clock(service.actualArrival)}</dd><dt>Cancelled</dt><dd>${service.cancelled ? "Yes" : "No"}</dd><dt>Effective delay</dt><dd>${a.effectiveDelayMinutes == null ? "Not determined" : `${a.effectiveDelayMinutes} minutes`}</dd><dt>Rule</dt><dd>${esc(a.ruleVersion)}</dd></dl>${alternatives}${a.ruleSource ? `<p><a href="${esc(a.ruleSource)}" target="_blank" rel="noopener">Official rule source →</a> · verified ${esc(a.ruleVerifiedAt)}</p>` : ""}</details><div class="actions">${actions}</div></article>`;
+  return `<article class="card ${heat}"><div class="card-top"><div><div class="train">${clock(service.scheduledDeparture)}</div><div class="operator">${esc(service.operatorName)}</div></div><div class="delay">${delay}</div></div><span class="status ${a.status}">${labels[a.status]}</span><details><summary>View details</summary><p>${esc(a.explanation)}</p><dl class="facts"><dt>Scheduled</dt><dd>${clock(service.scheduledDeparture)} → ${clock(service.scheduledArrival)}</dd><dt>Actual</dt><dd>${clock(service.actualDeparture)} → ${clock(service.actualArrival)}</dd><dt>Cancelled</dt><dd>${service.cancelled ? "Yes" : "No"}</dd><dt>Effective delay</dt><dd>${a.effectiveDelayMinutes == null ? "Not determined" : `${a.effectiveDelayMinutes} minutes`}</dd><dt>Rule</dt><dd>${esc(a.ruleVersion)}</dd></dl>${alternatives}${a.ruleSource ? `<p><a href="${esc(a.ruleSource)}" target="_blank" rel="noopener">Official rule source →</a> · verified ${esc(a.ruleVerifiedAt)}</p>` : ""}</details><div class="actions">${actions}</div></article>`;
 }
 
 async function claim(encodedId, undo) {

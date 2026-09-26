@@ -17,6 +17,9 @@ main { padding: 10px 16px 48px; }
 .summary strong { font-size: 1.3rem; }
 .summary span { color: #65706b; font-size: .73rem; }
 .controls { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; color: #59645f; font-size: .72rem; margin: -2px 0 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.heat-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; border: 1px solid #0001; }
 label { color: #59645f; font-size: .73rem; font-weight: 700; white-space: nowrap; }
 select, input { display: block; margin-top: 4px; border: 1px solid #ccd4cf; border-radius: 9px; background: white; padding: 8px 10px; color: inherit; }
 button { border: 0; border-radius: 9px; background: #176b55; color: white; padding: 9px 13px; font-weight: 750; cursor: pointer; }
@@ -27,7 +30,13 @@ button:disabled { opacity: .5; cursor: wait; }
 .day-heading span { color: #6b746f; font-size: .8rem; }
 .route { margin: 14px 0 7px; color: #52605a; font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .cards { display: grid; gap: 8px; }
-.card { background: white; border: 1px solid #dde3df; border-radius: 14px; padding: 14px; }
+.card { background: white; border: 1px solid #dde3df; border-left-width: 7px; border-radius: 14px; padding: 14px; }
+.card.heat-ok, .heat-dot.heat-ok { background-color: #e9f7ef; border-color: #6fbd8b; }
+.card.heat-15, .heat-dot.heat-15 { background-color: #fff4cf; border-color: #e0ae28; }
+.card.heat-30, .heat-dot.heat-30 { background-color: #ffe2bd; border-color: #e27b25; }
+.card.heat-60, .heat-dot.heat-60 { background-color: #ffd3d0; border-color: #d7433b; }
+.card.heat-cancelled, .heat-dot.heat-cancelled { background-color: #f2ced5; border-color: #881f35; }
+.card.heat-unknown { background-color: #f2f3f2; border-color: #909892; }
 .card-top { display: flex; justify-content: space-between; gap: 10px; }
 .train { font-size: 1rem; font-weight: 800; }
 .operator { color: #59645f; font-size: .8rem; margin-top: 2px; }
