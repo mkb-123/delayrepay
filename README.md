@@ -54,6 +54,18 @@ Run the local development server:
 pnpm dev
 ```
 
+Generate a local Delay Repay brief from retained data:
+
+```powershell
+pnpm brief
+```
+
+Fetch current RTT evidence and then generate the brief:
+
+```powershell
+pnpm brief --fetch
+```
+
 ## Data Collection
 
 Collect rail data locally for the latest relevant weekday:

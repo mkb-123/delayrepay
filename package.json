@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "brief": "node --conditions=react-server --import tsx scripts/brief.ts",
     "ingest": "node --conditions=react-server --import tsx scripts/ingest.ts",
     "publish:data": "tsx scripts/publish-data.ts",
     "prebuild": "tsx scripts/publish-data.ts"
