@@ -107,6 +107,11 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
     planned = [f"gb-nr:{item['rttIdentity']}:{service_date}" for item in entries]
     if dry_run:
         return {"date": service_date, "plannedRequests": planned, "requestCount": len(planned)}
+    if not entries:
+        return {
+            "date": service_date, "skipped": True, "complete": False, "services": [],
+            "errors": [{"error": "No catalogue entries for this weekday; run discover first."}],
+        }
     services, errors = [], []
     assert client is not None
     for entry, unique in zip(entries, planned):
@@ -172,6 +177,27 @@ def report_week(root: Path, week_start: str, action_only: bool = False) -> str:
         raise ValueError("No stored daily data in that week")
     text = "\n\n---\n\n".join(chunks)
     path = root / "reports" / f"week-{week_start}.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return text
+
+
+def report_lookback(root: Path, end_date: str, days: int, action_only: bool = False) -> str:
+    if days < 1:
+        raise ValueError("Lookback days must be at least 1")
+    end = date.fromisoformat(end_date)
+    start = end - timedelta(days=days - 1)
+    chunks = []
+    current = start
+    while current <= end:
+        service_date = current.isoformat()
+        if daily_path(root, service_date).exists():
+            chunks.append(generate_report(root, service_date, action_only)[0])
+        current += timedelta(days=1)
+    if not chunks:
+        raise ValueError(f"No stored daily data from {start.isoformat()} to {end.isoformat()}")
+    text = "\n\n---\n\n".join(chunks)
+    path = root / "reports" / f"lookback-{days}-days-ending-{end_date}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return text

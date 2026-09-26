@@ -3,12 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import date, timedelta
 
 from .config import data_dir, load_env
 from .rtt import RttClient, RttError
 from .store import catalogue_path, read_json
-from .workflows import collect, discover, discover_cached, generate_report, report_week, set_claim
+from .workflows import collect, discover, discover_cached, generate_report, report_lookback, report_week, set_claim
 
 
 def parser() -> argparse.ArgumentParser:
@@ -16,7 +16,8 @@ def parser() -> argparse.ArgumentParser:
     commands = root.add_subparsers(dest="command", required=True)
     for name in ("discover", "collect", "report"):
         command = commands.add_parser(name)
-        command.add_argument("--date", required=True, help="Service date (YYYY-MM-DD)")
+        command.add_argument("--date", required=name != "report", help="Service date (YYYY-MM-DD)")
+        command.add_argument("--lookback-days", "--lookup-days", dest="lookback_days", type=int, help="Process this many calendar days ending on --date")
         if name == "discover":
             command.add_argument("--from-cache", action="store_true", help="Use retained RTT observations; makes no API calls")
             command.add_argument("--direction", choices=("morning", "evening", "all"), default="all")
@@ -35,6 +36,20 @@ def parser() -> argparse.ArgumentParser:
     return root
 
 
+def lookback_dates(end_date: str, days: int, latest_per_weekday: bool = False) -> list[str]:
+    if days < 1:
+        raise ValueError("Lookback days must be at least 1")
+    end = date.fromisoformat(end_date)
+    dates = [end - timedelta(days=offset) for offset in range(days)]
+    weekdays = [value for value in dates if value.weekday() < 5]
+    if latest_per_weekday:
+        selected: dict[int, date] = {}
+        for value in weekdays:
+            selected.setdefault(value.weekday(), value)
+        weekdays = list(selected.values())
+    return sorted(value.isoformat() for value in weekdays)
+
+
 def main(argv: list[str] | None = None) -> int:
     load_env()
     args = parser().parse_args(argv)
@@ -42,14 +57,31 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "discover":
             direction = args.direction.upper()
-            found = discover_cached(root, args.date, direction) if args.from_cache else discover(root, args.date, RttClient(), direction)
-            print(f"Discovered {len(found)} relevant services. Catalogue: {catalogue_path(root)}")
+            dates = lookback_dates(args.date, args.lookback_days, True) if args.lookback_days else [args.date]
+            client = None if args.from_cache else RttClient()
+            total = 0
+            for service_date in dates:
+                found = discover_cached(root, service_date, direction) if args.from_cache else discover(root, service_date, client, direction)
+                total += len(found)
+                print(f"{service_date}: discovered {len(found)} relevant services.")
+            print(f"Discovered {total} services across {len(dates)} weekday catalogue snapshots. Catalogue: {catalogue_path(root)}")
         elif args.command == "collect":
-            value = collect(root, args.date, None if args.dry_run else RttClient(), args.dry_run)
-            print(json.dumps(value, indent=2) if args.dry_run else f"Stored {len(value['services'])} services for {args.date}; {len(value['errors'])} errors.")
+            dates = lookback_dates(args.date, args.lookback_days) if args.lookback_days else [args.date]
+            client = None if args.dry_run else RttClient()
+            results = [collect(root, service_date, client, args.dry_run) for service_date in dates]
+            if args.dry_run:
+                print(json.dumps({"dates": results, "requestCount": sum(item["requestCount"] for item in results)}, indent=2))
+            else:
+                for service_date, value in zip(dates, results):
+                    print(f"{service_date}: stored {len(value['services'])} services; {len(value['errors'])} errors.")
         elif args.command == "report":
-            text, _ = generate_report(root, args.date, args.action_only)
-            print(text)
+            if args.lookback_days:
+                print(report_lookback(root, args.date or date.today().isoformat(), args.lookback_days, args.action_only))
+            elif args.date:
+                text, _ = generate_report(root, args.date, args.action_only)
+                print(text)
+            else:
+                raise ValueError("--date is required unless --lookback-days is supplied")
         elif args.command == "catalogue":
             value = read_json(catalogue_path(root))
             if not value:

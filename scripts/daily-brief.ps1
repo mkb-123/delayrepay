@@ -7,7 +7,7 @@ while ($targetDate.DayOfWeek -in @([DayOfWeek]::Saturday, [DayOfWeek]::Sunday)) 
 }
 $serviceDate = $targetDate.ToString("yyyy-MM-dd")
 $logPath = Join-Path (Split-Path $PSScriptRoot -Parent) "data-store\scheduled-task.log"
-$command = "cd $repository && export PYTHONPATH=python && python3 -m delayrepay collect --date $serviceDate && python3 -m delayrepay report --date $serviceDate --action-only"
+$command = "cd $repository && export PYTHONPATH=python && python3 -m delayrepay collect --date $serviceDate && python3 -m delayrepay report --date $serviceDate --lookback-days 14 --action-only"
 
 & wsl.exe bash -lc $command 2>&1 | Tee-Object -FilePath $logPath -Append
 if ($LASTEXITCODE -ne 0) {

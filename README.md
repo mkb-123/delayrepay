@@ -34,6 +34,7 @@ cd /mnt/c/Users/mitzb/code/delayrepay
 export PYTHONPATH=python
 python3 -m delayrepay collect --date 2026-09-28
 python3 -m delayrepay report --date 2026-09-28
+python3 -m delayrepay report --date 2026-09-28 --lookback-days 14 --action-only
 ```
 
 The report is saved as `data-store/reports/2026-09-28.md`. Collection requires that weekday to exist in `data-store/service-catalogue.json` and that `.env` contains a valid RTT token.
@@ -61,6 +62,7 @@ Run this manually for a representative date for each weekday. Discovery searches
 ```bash
 python -m delayrepay discover --date 2026-09-28
 python -m delayrepay discover --date 2026-09-28 --direction evening
+python -m delayrepay discover --date 2026-10-02 --lookback-days 14
 ```
 
 Repeat for Tuesday through Friday if their timetables differ. Direction-scoped discovery replaces only that weekday and direction, preserving the other half of the catalogue. Results are saved to `data-store/service-catalogue.json` and a readable `data-store/service-catalogue.md`. Only direct passenger services in the configured windows and scheduled to take no more than 60 minutes are retained.
@@ -77,12 +79,14 @@ Preview the exact RTT detail calls without using the API:
 
 ```bash
 python -m delayrepay collect --date 2026-09-28 --dry-run
+python -m delayrepay collect --date 2026-10-02 --lookback-days 14 --dry-run
 ```
 
 Collect the running data:
 
 ```bash
 python -m delayrepay collect --date 2026-09-28
+python -m delayrepay collect --date 2026-10-02 --lookback-days 14
 ```
 
 Collection uses the saved catalogue and makes one detail request per known train. It does not rediscover the timetable. Results are upserted to `data-store/daily/YYYY-MM-DD.json`, so rerunning a date replaces that date rather than creating duplicates.
@@ -92,10 +96,13 @@ Collection uses the saved catalogue and makes one detail request per known train
 ```bash
 python -m delayrepay report --date 2026-09-28
 python -m delayrepay report --date 2026-09-28 --action-only
+python -m delayrepay report --date 2026-09-28 --lookback-days 14
 python -m delayrepay report-week --week-start 2026-09-28
 ```
 
-Reports are written under `data-store/reports/`. The normal report shows only the train, destination delay, and claim classification. Daily JSON retains the underlying times and RTT identifiers.
+Reports are written under `data-store/reports/`. `--lookback-days 14` combines any stored dates in the 14 calendar days ending on `--date`; if `--date` is omitted, it ends today. It reads local files only and makes no RTT calls. The normal report shows only the train, destination delay, and claim classification. Daily JSON retains the underlying times and RTT identifiers.
+
+`--lookback-days` is supported by all three stages, with `--lookup-days` accepted as an alias. Discovery uses only the latest occurrence of each weekday in the range, so a 14-day lookup performs at most five timetable snapshots. Collection processes every weekday in the range. Reporting combines every stored day in the range.
 
 ## Claim acknowledgement
 
