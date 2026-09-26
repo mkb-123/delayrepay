@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-26T15:24:13.095046Z",
+  "updatedAt": "2026-09-26T16:44:33.976630Z",
   "services": [
     {
       "rttIdentity": "W34030",
@@ -276,7 +276,7 @@
       "scheduledArrival": "17:14",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "C18013",
@@ -288,7 +288,7 @@
       "scheduledArrival": "17:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "C17846",
@@ -300,7 +300,7 @@
       "scheduledArrival": "17:37",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "C01361",
@@ -312,7 +312,7 @@
       "scheduledArrival": "17:51",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "Y80780",
@@ -324,7 +324,7 @@
       "scheduledArrival": "17:56",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "C17813",
@@ -336,7 +336,7 @@
       "scheduledArrival": "18:07",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "C18012",
@@ -348,7 +348,7 @@
       "scheduledArrival": "18:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "Y80919",
@@ -360,7 +360,7 @@
       "scheduledArrival": "18:37",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "W33819",
@@ -372,7 +372,7 @@
       "scheduledArrival": "07:03",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "Y80775",
@@ -384,7 +384,7 @@
       "scheduledArrival": "07:10",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "Y80783",
@@ -396,7 +396,7 @@
       "scheduledArrival": "07:21",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "W34056",
@@ -408,7 +408,7 @@
       "scheduledArrival": "07:18",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "C17991",
@@ -417,10 +417,10 @@
       "origin": "MKC",
       "destination": "EUS",
       "scheduledDeparture": "06:49",
-      "scheduledArrival": "07:25",
+      "scheduledArrival": "07:24",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "W34202",
@@ -428,11 +428,11 @@
       "direction": "MORNING",
       "origin": "MKC",
       "destination": "EUS",
-      "scheduledDeparture": "06:56",
-      "scheduledArrival": "07:28",
+      "scheduledDeparture": "06:54",
+      "scheduledArrival": "07:27",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "Y80784",
@@ -444,7 +444,7 @@
       "scheduledArrival": "07:38",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "W34019",
@@ -452,11 +452,11 @@
       "direction": "MORNING",
       "origin": "MKC",
       "destination": "EUS",
-      "scheduledDeparture": "07:00",
-      "scheduledArrival": "07:32",
+      "scheduledDeparture": "06:59",
+      "scheduledArrival": "07:31",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "Y80786",
@@ -465,10 +465,10 @@
       "origin": "MKC",
       "destination": "EUS",
       "scheduledDeparture": "07:07",
-      "scheduledArrival": "07:51",
+      "scheduledArrival": "07:50",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "W33943",
@@ -477,10 +477,10 @@
       "origin": "MKC",
       "destination": "EUS",
       "scheduledDeparture": "07:17",
-      "scheduledArrival": "07:54",
+      "scheduledArrival": "07:53",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "W33927",
@@ -492,7 +492,7 @@
       "scheduledArrival": "08:00",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "C17898",
@@ -504,7 +504,7 @@
       "scheduledArrival": "08:05",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "Y80789",
@@ -516,7 +516,7 @@
       "scheduledArrival": "08:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "C17977",
@@ -528,7 +528,7 @@
       "scheduledArrival": "08:21",
       "operatorCode": "LM",
       "operatorName": "West Midlands Railway",
-      "discoveredFrom": "2026-09-22"
+      "discoveredFrom": "2026-09-29"
     },
     {
       "rttIdentity": "W34030",
@@ -540,7 +540,7 @@
       "scheduledArrival": "17:14",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "C18013",
@@ -552,7 +552,7 @@
       "scheduledArrival": "17:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "C17846",
@@ -564,7 +564,7 @@
       "scheduledArrival": "17:37",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "C01361",
@@ -576,7 +576,7 @@
       "scheduledArrival": "17:51",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "Y80780",
@@ -588,7 +588,7 @@
       "scheduledArrival": "17:56",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "C17813",
@@ -600,7 +600,7 @@
       "scheduledArrival": "18:07",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "C18012",
@@ -612,7 +612,7 @@
       "scheduledArrival": "18:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "Y80919",
@@ -624,7 +624,7 @@
       "scheduledArrival": "18:37",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "W33819",
@@ -636,7 +636,7 @@
       "scheduledArrival": "07:03",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "Y80775",
@@ -648,7 +648,7 @@
       "scheduledArrival": "07:10",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "Y80783",
@@ -660,7 +660,7 @@
       "scheduledArrival": "07:21",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "W34056",
@@ -672,7 +672,7 @@
       "scheduledArrival": "07:18",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "C17991",
@@ -681,10 +681,10 @@
       "origin": "MKC",
       "destination": "EUS",
       "scheduledDeparture": "06:49",
-      "scheduledArrival": "07:25",
+      "scheduledArrival": "07:24",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "W34202",
@@ -692,11 +692,11 @@
       "direction": "MORNING",
       "origin": "MKC",
       "destination": "EUS",
-      "scheduledDeparture": "06:56",
-      "scheduledArrival": "07:28",
+      "scheduledDeparture": "06:54",
+      "scheduledArrival": "07:27",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "Y80784",
@@ -708,7 +708,7 @@
       "scheduledArrival": "07:38",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "W34019",
@@ -716,11 +716,11 @@
       "direction": "MORNING",
       "origin": "MKC",
       "destination": "EUS",
-      "scheduledDeparture": "07:00",
-      "scheduledArrival": "07:32",
+      "scheduledDeparture": "06:59",
+      "scheduledArrival": "07:31",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "Y80786",
@@ -729,10 +729,10 @@
       "origin": "MKC",
       "destination": "EUS",
       "scheduledDeparture": "07:07",
-      "scheduledArrival": "07:51",
+      "scheduledArrival": "07:50",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "W33943",
@@ -741,10 +741,10 @@
       "origin": "MKC",
       "destination": "EUS",
       "scheduledDeparture": "07:17",
-      "scheduledArrival": "07:54",
+      "scheduledArrival": "07:53",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "W33927",
@@ -756,7 +756,7 @@
       "scheduledArrival": "08:00",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "C17898",
@@ -768,7 +768,7 @@
       "scheduledArrival": "08:05",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "Y80789",
@@ -780,7 +780,7 @@
       "scheduledArrival": "08:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "C17977",
@@ -792,7 +792,7 @@
       "scheduledArrival": "08:21",
       "operatorCode": "LM",
       "operatorName": "West Midlands Railway",
-      "discoveredFrom": "2026-09-23"
+      "discoveredFrom": "2026-09-30"
     },
     {
       "rttIdentity": "W34030",
@@ -804,7 +804,7 @@
       "scheduledArrival": "17:14",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "C18013",
@@ -816,7 +816,7 @@
       "scheduledArrival": "17:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "C17846",
@@ -828,7 +828,7 @@
       "scheduledArrival": "17:37",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "C01361",
@@ -840,7 +840,7 @@
       "scheduledArrival": "17:51",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "Y80780",
@@ -852,7 +852,7 @@
       "scheduledArrival": "17:56",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "C17813",
@@ -864,7 +864,7 @@
       "scheduledArrival": "18:07",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "C18012",
@@ -876,7 +876,7 @@
       "scheduledArrival": "18:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "Y80919",
@@ -888,7 +888,7 @@
       "scheduledArrival": "18:37",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "W33819",
@@ -900,7 +900,7 @@
       "scheduledArrival": "07:03",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "Y80775",
@@ -912,7 +912,7 @@
       "scheduledArrival": "07:10",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "Y80783",
@@ -924,7 +924,7 @@
       "scheduledArrival": "07:21",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "W34056",
@@ -936,7 +936,7 @@
       "scheduledArrival": "07:18",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "C17991",
@@ -945,10 +945,10 @@
       "origin": "MKC",
       "destination": "EUS",
       "scheduledDeparture": "06:49",
-      "scheduledArrival": "07:25",
+      "scheduledArrival": "07:24",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "W34202",
@@ -956,11 +956,11 @@
       "direction": "MORNING",
       "origin": "MKC",
       "destination": "EUS",
-      "scheduledDeparture": "06:56",
-      "scheduledArrival": "07:28",
+      "scheduledDeparture": "06:54",
+      "scheduledArrival": "07:27",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "Y80784",
@@ -972,7 +972,7 @@
       "scheduledArrival": "07:38",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "W34019",
@@ -980,11 +980,11 @@
       "direction": "MORNING",
       "origin": "MKC",
       "destination": "EUS",
-      "scheduledDeparture": "07:00",
-      "scheduledArrival": "07:32",
+      "scheduledDeparture": "06:59",
+      "scheduledArrival": "07:31",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "Y80786",
@@ -993,10 +993,10 @@
       "origin": "MKC",
       "destination": "EUS",
       "scheduledDeparture": "07:07",
-      "scheduledArrival": "07:51",
+      "scheduledArrival": "07:50",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "W33943",
@@ -1005,10 +1005,10 @@
       "origin": "MKC",
       "destination": "EUS",
       "scheduledDeparture": "07:17",
-      "scheduledArrival": "07:54",
+      "scheduledArrival": "07:53",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "W33927",
@@ -1020,7 +1020,7 @@
       "scheduledArrival": "08:00",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "C17898",
@@ -1032,7 +1032,7 @@
       "scheduledArrival": "08:05",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "Y80789",
@@ -1044,7 +1044,7 @@
       "scheduledArrival": "08:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "C17977",
@@ -1056,7 +1056,7 @@
       "scheduledArrival": "08:21",
       "operatorCode": "LM",
       "operatorName": "West Midlands Railway",
-      "discoveredFrom": "2026-09-24"
+      "discoveredFrom": "2026-10-01"
     },
     {
       "rttIdentity": "W34030",
@@ -1068,7 +1068,7 @@
       "scheduledArrival": "17:14",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "C18013",
@@ -1080,7 +1080,7 @@
       "scheduledArrival": "17:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "C17846",
@@ -1092,7 +1092,7 @@
       "scheduledArrival": "17:37",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "C01361",
@@ -1104,7 +1104,7 @@
       "scheduledArrival": "17:51",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "Y80780",
@@ -1116,7 +1116,7 @@
       "scheduledArrival": "17:56",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "C17813",
@@ -1128,7 +1128,7 @@
       "scheduledArrival": "18:07",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "C18012",
@@ -1140,7 +1140,7 @@
       "scheduledArrival": "18:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "Y80919",
@@ -1152,7 +1152,7 @@
       "scheduledArrival": "18:37",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "W33819",
@@ -1164,7 +1164,7 @@
       "scheduledArrival": "07:03",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "Y80775",
@@ -1176,7 +1176,7 @@
       "scheduledArrival": "07:10",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "Y80783",
@@ -1188,7 +1188,7 @@
       "scheduledArrival": "07:21",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "W34056",
@@ -1200,7 +1200,7 @@
       "scheduledArrival": "07:18",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "C17991",
@@ -1212,7 +1212,7 @@
       "scheduledArrival": "07:24",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "W34202",
@@ -1224,7 +1224,7 @@
       "scheduledArrival": "07:27",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "Y80784",
@@ -1236,7 +1236,7 @@
       "scheduledArrival": "07:38",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "W34019",
@@ -1248,7 +1248,7 @@
       "scheduledArrival": "07:31",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "Y80786",
@@ -1260,7 +1260,7 @@
       "scheduledArrival": "07:50",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "W33943",
@@ -1272,7 +1272,7 @@
       "scheduledArrival": "07:53",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "W33927",
@@ -1284,7 +1284,7 @@
       "scheduledArrival": "08:00",
       "operatorCode": "VT",
       "operatorName": "Avanti West Coast",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "C17898",
@@ -1296,7 +1296,7 @@
       "scheduledArrival": "08:05",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "Y80789",
@@ -1308,7 +1308,7 @@
       "scheduledArrival": "08:18",
       "operatorCode": "LM",
       "operatorName": "London Northwestern Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     },
     {
       "rttIdentity": "C17977",
@@ -1320,7 +1320,7 @@
       "scheduledArrival": "08:21",
       "operatorCode": "LM",
       "operatorName": "West Midlands Railway",
-      "discoveredFrom": "2026-09-25"
+      "discoveredFrom": "2026-10-02"
     }
   ]
 }
