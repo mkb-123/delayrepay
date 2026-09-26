@@ -22,7 +22,7 @@ export class RttClient {
       await this.throttle();
       return await this.request(BASE + path, {
         headers: { Authorization: "Bearer " + token, Version: this.env.RTT_API_VERSION || "2026-07-25", Accept: "application/json" },
-        signal: AbortSignal.timeout(15000), cache: "no-store", redirect: "error",
+        signal: AbortSignal.timeout(Number(this.env.RTT_REQUEST_TIMEOUT_MS || 15000)), cache: "no-store", redirect: "error",
       });
     } catch { throw new RttError("RTT_NETWORK_ERROR"); }
   }

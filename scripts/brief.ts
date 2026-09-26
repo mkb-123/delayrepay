@@ -12,6 +12,8 @@ const explicitDate = process.argv.slice(2).find(arg => /^\d{4}-\d{2}-\d{2}$/.tes
 const fetchLatest = args.has("--fetch");
 const dryRun = args.has("--dry-run") || args.has("--plan");
 const outputPath = valueAfter("--output");
+const maxDetails = numericValueAfter("--max-details");
+const quiet = args.has("--quiet");
 const dataDir = resolve(process.env.DATA_DIR || "data-store");
 const ackPath = resolve(process.env.ACK_FILE || `${dataDir}/acknowledgements.json`);
 const today = londonDate();
@@ -24,7 +26,7 @@ if (explicitDate && (!isDate(explicitDate) || !weekday(explicitDate) || explicit
 const dates = explicitDate ? [explicitDate] : recentWeekdays(today, 1);
 
 if (fetchLatest || dryRun) {
-  const runs = await ingest(dataDir, dates, undefined, { dryRun });
+  const runs = await ingest(dataDir, dates, undefined, { dryRun, maxDetailRequests: maxDetails, onProgress: quiet ? undefined : message => console.error(message) });
   for (const run of runs) console.error(`${run.serviceDate}: ${run.status} (${run.servicesUpdated} service updates) ${run.message}`);
   if (dryRun) process.exit(0);
 }
@@ -43,6 +45,17 @@ if (outputPath) {
 function valueAfter(name: string): string | undefined {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function numericValueAfter(name: string): number | undefined {
+  const value = valueAfter(name);
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    console.error(`${name} must be a non-negative integer.`);
+    process.exit(1);
+  }
+  return parsed;
 }
 
 async function readLocalRecords(path: string): Promise<LocalRecords> {

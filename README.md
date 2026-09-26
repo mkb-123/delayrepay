@@ -66,6 +66,18 @@ Fetch current RTT evidence and then generate the brief. This is the command that
 pnpm brief --fetch
 ```
 
+Write the brief to a file you can open:
+
+```powershell
+pnpm brief 2026-09-25 --output data-store/brief-2026-09-25.md
+```
+
+For a cheap live smoke test, cap service-detail calls:
+
+```powershell
+pnpm brief --fetch 2026-09-25 --max-details 5
+```
+
 Preview the planned fetch without calling RTT or changing stored data:
 
 ```powershell
@@ -73,6 +85,8 @@ pnpm brief --fetch --dry-run
 ```
 
 ## Data Collection
+
+Collection now discovers likely route services by intersecting station lineups: a service must appear at both monitored endpoints before the script fetches its detail record. This uses more lightweight lineup calls than the first prototype, but avoids fetching details for unrelated services that merely depart MKC or EUS in the monitored windows.
 
 Collect rail data locally for the latest relevant weekday. Prefer `pnpm brief --fetch` unless you only want to refresh stored data:
 

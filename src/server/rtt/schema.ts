@@ -1,6 +1,6 @@
 import { z } from "zod";
 // Strip unknown fields at the boundary: only rail evidence is persisted, never headers or credentials.
-const timestamp = z.iso.datetime({ offset: true }).nullish();
+const timestamp = z.string().min(1).nullish();
 const time = z.object({
   scheduleAdvertised: timestamp, scheduleInternal: timestamp,
   realtimeActual: timestamp, realtimeForecast: timestamp, realtimeEstimate: timestamp,
