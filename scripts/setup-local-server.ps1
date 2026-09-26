@@ -13,12 +13,15 @@ netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=$listenPor
 Remove-NetFirewallRule -DisplayName $firewallName -ErrorAction SilentlyContinue
 New-NetFirewallRule -DisplayName $firewallName -Direction Inbound -Action Allow -Protocol TCP -LocalPort $listenPort -RemoteAddress LocalSubnet -Profile Any | Out-Null
 
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptPath`""
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-$settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 3650) -MultipleInstances IgnoreNew
-$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
-Start-ScheduledTask -TaskName $taskName
+$taskCommand = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptPath`""
+& schtasks.exe /Create /TN $taskName /SC ONLOGON /TR $taskCommand /RL LIMITED /F | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not create the login task (schtasks exit code $LASTEXITCODE)."
+}
+& schtasks.exe /Run /TN $taskName | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "The login task was created but could not be started (schtasks exit code $LASTEXITCODE)."
+}
 
 $address = Get-NetIPAddress -AddressFamily IPv4 |
     Where-Object { $_.IPAddress -notlike '127.*' -and $_.InterfaceAlias -notmatch 'vEthernet|Loopback' } |
