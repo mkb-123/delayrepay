@@ -11,7 +11,11 @@ def assess(service: dict[str, Any], all_services: list[dict[str, Any]], claimed_
     raw = service.get("rawDelayMinutes")
     alternatives = []
     for candidate in all_services:
-        if candidate.get("serviceId") == service.get("serviceId") or candidate.get("direction") != service.get("direction"):
+        if (
+            candidate.get("serviceId") == service.get("serviceId")
+            or candidate.get("direction") != service.get("direction")
+            or candidate.get("operatorCode") != service.get("operatorCode")
+        ):
             continue
         if not candidate.get("actualDeparture") or not candidate.get("actualArrival") or not service.get("scheduledDeparture"):
             continue
