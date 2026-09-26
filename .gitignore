@@ -7,7 +7,6 @@ coverage/
 !.env.example
 *.log
 *.tsbuildinfo
-data-store/
 public/data/
 artifacts/
 .local-db/
