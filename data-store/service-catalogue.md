@@ -1,6 +1,6 @@
 # Relevant service catalogue
 
-Updated: 2026-09-26T20:10:27.433365Z
+Updated: 2026-09-26T20:12:22.771123Z
 
 | Day | Direction | Train | Operator | Journey |
 |---|---|---:|---|---|
