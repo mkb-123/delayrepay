@@ -29,9 +29,15 @@ function render() {
   $("incompleteCount").textContent = data.summary.incompleteDays;
   $("rangeLabel").textContent = `${data.from} to ${data.to}`;
   const direction = $("direction").value, operator = $("operator").value, status = $("status").value;
+  const delay = $("delay").value === "" ? null : Number($("delay").value);
   let html = "";
   for (const day of data.days) {
-    const services = day.services.filter(s => (!direction || s.direction === direction) && (!operator || s.operatorName === operator) && (!status || s.assessment.status === status));
+    const services = day.services.filter(s =>
+      (!direction || s.direction === direction) &&
+      (!operator || s.operatorName === operator) &&
+      (!status || s.assessment.status === status) &&
+      (delay === null || (s.rawDelayMinutes != null && s.rawDelayMinutes > delay))
+    );
     if (!services.length) continue;
     html += `<article class="day"><div class="day-heading"><h2>${esc(day.date)}</h2><span>${day.sourceComplete ? "Complete" : "Incomplete collection"}</span></div>`;
     for (const routeDirection of ["MORNING", "EVENING"]) {
@@ -92,7 +98,7 @@ async function pollJob(id) {
 
 $("period").addEventListener("change", () => { const custom = $("period").value === "custom"; $("fromWrap").hidden = !custom; $("toWrap").hidden = !custom; if (!custom) load(); });
 for (const id of ["fromDate", "toDate"]) $(id).addEventListener("change", load);
-for (const id of ["direction", "operator", "status"]) $(id).addEventListener("change", render);
+for (const id of ["direction", "operator", "status", "delay"]) $(id).addEventListener("change", render);
 $("refreshButton").addEventListener("click", openRefresh);
 $("confirmRefresh").addEventListener("click", startRefresh);
 const initial = dateRange(10); $("fromDate").value = initial[0]; $("toDate").value = initial[1]; load();
