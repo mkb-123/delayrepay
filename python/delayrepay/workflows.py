@@ -26,10 +26,13 @@ def _later(clock: str, minutes: int) -> str:
     return value.strftime("%H:%M")
 
 
-def _save_catalogue(root: Path, service_date: str, found: list[dict[str, Any]]) -> None:
+def _save_catalogue(root: Path, service_date: str, found: list[dict[str, Any]], directions: set[str]) -> None:
     weekday = _weekday(service_date)
     existing = read_json(catalogue_path(root), {"services": []})
-    others = [item for item in existing.get("services", []) if item.get("weekday") != weekday]
+    others = [
+        item for item in existing.get("services", [])
+        if item.get("weekday") != weekday or item.get("direction") not in directions
+    ]
     services = sorted(others + found, key=lambda item: (item["weekday"], item["direction"], item["scheduledDeparture"], item["rttIdentity"]))
     value = {"version": 1, "updatedAt": _now(), "services": services}
     write_json(catalogue_path(root), value)
@@ -40,53 +43,56 @@ def _save_catalogue(root: Path, service_date: str, found: list[dict[str, Any]]) 
     (root / "service-catalogue.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def discover(root: Path, service_date: str, client: RttClient) -> list[dict[str, Any]]:
+def discover(root: Path, service_date: str, client: RttClient, direction: str = "ALL") -> list[dict[str, Any]]:
     weekday = _weekday(service_date)
     found: list[dict[str, Any]] = []
-    for direction, window in WINDOWS.items():
+    selected = set(WINDOWS) if direction == "ALL" else {direction}
+    for current_direction in selected:
+        window = WINDOWS[current_direction]
         origin_line = client.lineup(window["origin"], service_date, window["from"], window["to"])
         destination_line = client.lineup(window["destination"], service_date, window["from"], _later(window["to"], 90))
         origin_ids = {item.get("scheduleMetadata", {}).get("uniqueIdentity") for item in origin_line.get("services", [])}
         destination_ids = {item.get("scheduleMetadata", {}).get("uniqueIdentity") for item in destination_line.get("services", [])}
         for unique in sorted((origin_ids & destination_ids) - {None}):
-            service = normalize(client.service(unique), direction, _now())
+            service = normalize(client.service(unique), current_direction, _now())
             if not service or not in_window(service):
                 continue
             found.append({
-                "rttIdentity": service["rttIdentity"], "weekday": weekday, "direction": direction,
+                "rttIdentity": service["rttIdentity"], "weekday": weekday, "direction": current_direction,
                 "origin": service["origin"], "destination": service["destination"],
                 "scheduledDeparture": service["scheduledDeparture"][11:16], "scheduledArrival": service["scheduledArrival"][11:16],
                 "operatorCode": service["operatorCode"], "operatorName": service["operatorName"],
                 "discoveredFrom": service_date,
             })
-    _save_catalogue(root, service_date, found)
+    _save_catalogue(root, service_date, found, selected)
     return found
 
 
-def discover_cached(root: Path, service_date: str) -> list[dict[str, Any]]:
+def discover_cached(root: Path, service_date: str, direction: str = "ALL") -> list[dict[str, Any]]:
     weekday = _weekday(service_date)
     observation_dir = root / "observations" / service_date
     if not observation_dir.exists():
         raise ValueError(f"No cached RTT observations for {service_date}")
     found_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    selected = set(WINDOWS) if direction == "ALL" else {direction}
     for path in observation_dir.glob("*.json"):
         observation = read_json(path, {})
         payload = observation.get("payload", observation)
         collected_at = observation.get("collectedAt", _now())
-        for direction in WINDOWS:
-            service = normalize(payload, direction, collected_at)
+        for current_direction in selected:
+            service = normalize(payload, current_direction, collected_at)
             if not service or not in_window(service):
                 continue
             item = {
-                "rttIdentity": service["rttIdentity"], "weekday": weekday, "direction": direction,
+                "rttIdentity": service["rttIdentity"], "weekday": weekday, "direction": current_direction,
                 "origin": service["origin"], "destination": service["destination"],
                 "scheduledDeparture": service["scheduledDeparture"][11:16], "scheduledArrival": service["scheduledArrival"][11:16],
                 "operatorCode": service["operatorCode"], "operatorName": service["operatorName"],
                 "discoveredFrom": service_date, "source": "cached-observation",
             }
-            found_by_key[(item["rttIdentity"], direction)] = item
+            found_by_key[(item["rttIdentity"], current_direction)] = item
     found = list(found_by_key.values())
-    _save_catalogue(root, service_date, found)
+    _save_catalogue(root, service_date, found, selected)
     return found
 
 

@@ -19,6 +19,7 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument("--date", required=True, help="Service date (YYYY-MM-DD)")
         if name == "discover":
             command.add_argument("--from-cache", action="store_true", help="Use retained RTT observations; makes no API calls")
+            command.add_argument("--direction", choices=("morning", "evening", "all"), default="all")
         if name == "collect":
             command.add_argument("--dry-run", action="store_true", help="Show exact RTT service requests without calling RTT")
         if name == "report":
@@ -40,7 +41,8 @@ def main(argv: list[str] | None = None) -> int:
     root = data_dir()
     try:
         if args.command == "discover":
-            found = discover_cached(root, args.date) if args.from_cache else discover(root, args.date, RttClient())
+            direction = args.direction.upper()
+            found = discover_cached(root, args.date, direction) if args.from_cache else discover(root, args.date, RttClient(), direction)
             print(f"Discovered {len(found)} relevant services. Catalogue: {catalogue_path(root)}")
         elif args.command == "collect":
             value = collect(root, args.date, None if args.dry_run else RttClient(), args.dry_run)

@@ -10,6 +10,34 @@ It separates three jobs so routine collection stays cheap:
 
 The earlier Next.js viewer remains in the repository, but the Python CLI is now the supported workflow.
 
+## Run it
+
+The quickest option is the registered Windows task. Open PowerShell and run:
+
+```powershell
+Start-ScheduledTask -TaskName "MKC EUS Delay Repay"
+```
+
+Wait about a minute, then read the latest output:
+
+```powershell
+Get-Content C:\Users\mitzb\code\delayrepay\data-store\scheduled-task.log -Tail 50
+Get-ChildItem C:\Users\mitzb\code\delayrepay\data-store\reports | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+```
+
+The task also runs automatically at 19:00 every Monday–Friday. It uses WSL and plain Python; no AI model is involved.
+
+To run a specific date manually in WSL:
+
+```bash
+cd /mnt/c/Users/mitzb/code/delayrepay
+export PYTHONPATH=python
+python3 -m delayrepay collect --date 2026-09-28
+python3 -m delayrepay report --date 2026-09-28
+```
+
+The report is saved as `data-store/reports/2026-09-28.md`. Collection requires that weekday to exist in `data-store/service-catalogue.json` and that `.env` contains a valid RTT token.
+
 ## Requirements
 
 - Python 3.11 or newer
@@ -32,9 +60,10 @@ Run this manually for a representative date for each weekday. Discovery searches
 
 ```bash
 python -m delayrepay discover --date 2026-09-28
+python -m delayrepay discover --date 2026-09-28 --direction evening
 ```
 
-Repeat for Tuesday through Friday if their timetables differ. Results are saved to `data-store/service-catalogue.json` and a readable `data-store/service-catalogue.md`. Only direct passenger services in the configured windows and scheduled to take no more than 60 minutes are retained.
+Repeat for Tuesday through Friday if their timetables differ. Direction-scoped discovery replaces only that weekday and direction, preserving the other half of the catalogue. Results are saved to `data-store/service-catalogue.json` and a readable `data-store/service-catalogue.md`. Only direct passenger services in the configured windows and scheduled to take no more than 60 minutes are retained.
 
 To bootstrap a weekday from retained RTT observations without making any API calls:
 
