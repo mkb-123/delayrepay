@@ -87,7 +87,7 @@ The current Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) rule
 
 ## Scheduling
 
-Use Windows Task Scheduler, cron, or another job runner to execute `collect` after each monitoring window, followed by `report`. Do not schedule `discover`; rerun it only when you want to refresh the catalogue.
+The repository includes `scripts/daily-brief.ps1` for Windows Task Scheduler. The local task runs through WSL at 19:00 every weekday, writes the report under `data-store/reports/`, and appends command output to `data-store/scheduled-task.log`. Do not schedule `discover`; rerun it only when you want to refresh the catalogue.
 
 Tests are intentionally deferred while the catalogue and report shapes are being finalised. The current no-network check is:
 
