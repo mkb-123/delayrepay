@@ -8,7 +8,7 @@ from datetime import date
 from .config import data_dir, load_env
 from .rtt import RttClient, RttError
 from .store import catalogue_path, read_json
-from .workflows import collect, discover, generate_report, report_week, set_claim
+from .workflows import collect, discover, discover_cached, generate_report, report_week, set_claim
 
 
 def parser() -> argparse.ArgumentParser:
@@ -17,6 +17,8 @@ def parser() -> argparse.ArgumentParser:
     for name in ("discover", "collect", "report"):
         command = commands.add_parser(name)
         command.add_argument("--date", required=True, help="Service date (YYYY-MM-DD)")
+        if name == "discover":
+            command.add_argument("--from-cache", action="store_true", help="Use retained RTT observations; makes no API calls")
         if name == "collect":
             command.add_argument("--dry-run", action="store_true", help="Show exact RTT service requests without calling RTT")
         if name == "report":
@@ -38,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     root = data_dir()
     try:
         if args.command == "discover":
-            found = discover(root, args.date, RttClient())
+            found = discover_cached(root, args.date) if args.from_cache else discover(root, args.date, RttClient())
             print(f"Discovered {len(found)} relevant services. Catalogue: {catalogue_path(root)}")
         elif args.command == "collect":
             value = collect(root, args.date, None if args.dry_run else RttClient(), args.dry_run)

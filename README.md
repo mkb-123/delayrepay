@@ -36,6 +36,12 @@ python -m delayrepay discover --date 2026-09-28
 
 Repeat for Tuesday through Friday if their timetables differ. Results are saved to `data-store/service-catalogue.json` and a readable `data-store/service-catalogue.md`. Only direct passenger services in the configured windows and scheduled to take no more than 60 minutes are retained.
 
+To bootstrap a weekday from retained RTT observations without making any API calls:
+
+```bash
+python -m delayrepay discover --date 2026-09-25 --from-cache
+```
+
 ## 2. Collect a day
 
 Preview the exact RTT detail calls without using the API:
