@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,8 @@ from .assess import assess
 from .rtt import RttClient, RttError
 from .services import WINDOWS, in_window, normalize
 from .store import catalogue_path, daily_path, read_json, report_path, write_json
+
+LOGGER = logging.getLogger("delayrepay.workflow")
 
 
 def _now() -> str:
@@ -41,22 +44,29 @@ def _save_catalogue(root: Path, service_date: str, found: list[dict[str, Any]], 
     for item in services:
         lines.append(f"| {days[item['weekday']]} | {item['direction'].title()} | {item['scheduledDeparture']} | {item['operatorName']} | {item['origin']} → {item['destination']} ({item['scheduledArrival']}) |")
     (root / "service-catalogue.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    LOGGER.info("Saved catalogue with %d total services", len(services))
 
 
 def discover(root: Path, service_date: str, client: RttClient, direction: str = "ALL") -> list[dict[str, Any]]:
     weekday = _weekday(service_date)
     found: list[dict[str, Any]] = []
     selected = set(WINDOWS) if direction == "ALL" else {direction}
+    LOGGER.info("Discovering %s services for %s", ", ".join(sorted(selected)).lower(), service_date)
     for current_direction in selected:
         window = WINDOWS[current_direction]
+        LOGGER.info("Loading %s origin and destination lineups", current_direction.lower())
         origin_line = client.lineup(window["origin"], service_date, window["from"], window["to"])
         destination_line = client.lineup(window["destination"], service_date, window["from"], _later(window["to"], 90))
         origin_ids = {item.get("scheduleMetadata", {}).get("uniqueIdentity") for item in origin_line.get("services", [])}
         destination_ids = {item.get("scheduleMetadata", {}).get("uniqueIdentity") for item in destination_line.get("services", [])}
-        for unique in sorted((origin_ids & destination_ids) - {None}):
+        candidates = sorted((origin_ids & destination_ids) - {None})
+        LOGGER.info("Checking %d shared %s service candidates", len(candidates), current_direction.lower())
+        for index, unique in enumerate(candidates, 1):
+            LOGGER.info("Checking candidate %d/%d: %s", index, len(candidates), unique)
             service = normalize(client.service(unique), current_direction, _now())
             if not service or not in_window(service):
                 continue
+            LOGGER.info("Retained %s %s %s", service["scheduledDeparture"][11:16], service["operatorName"], current_direction.lower())
             found.append({
                 "rttIdentity": service["rttIdentity"], "weekday": weekday, "direction": current_direction,
                 "origin": service["origin"], "destination": service["destination"],
@@ -75,6 +85,7 @@ def discover_cached(root: Path, service_date: str, direction: str = "ALL") -> li
         observation_dir = root.parent / "legacy" / "data-store" / "observations" / service_date
     if not observation_dir.exists():
         raise ValueError(f"No cached RTT observations for {service_date}")
+    LOGGER.info("Reading cached observations from %s", observation_dir)
     found_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     selected = set(WINDOWS) if direction == "ALL" else {direction}
     for path in observation_dir.glob("*.json"):
@@ -95,6 +106,7 @@ def discover_cached(root: Path, service_date: str, direction: str = "ALL") -> li
             found_by_key[(item["rttIdentity"], current_direction)] = item
     found = list(found_by_key.values())
     _save_catalogue(root, service_date, found, selected)
+    LOGGER.info("Retained %d services from cached observations", len(found))
     return found
 
 
@@ -105,6 +117,7 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
         raise ValueError("No service catalogue. Run discover first.")
     entries = [item for item in catalogue.get("services", []) if item.get("weekday") == weekday]
     planned = [f"gb-nr:{item['rttIdentity']}:{service_date}" for item in entries]
+    LOGGER.info("Collection for %s: %d catalogue services%s", service_date, len(planned), " (dry run)" if dry_run else "")
     if dry_run:
         return {"date": service_date, "plannedRequests": planned, "requestCount": len(planned)}
     if not entries:
@@ -114,15 +127,18 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
         }
     services, errors = [], []
     assert client is not None
-    for entry, unique in zip(entries, planned):
+    for index, (entry, unique) in enumerate(zip(entries, planned), 1):
+        LOGGER.info("Collecting service %d/%d: %s %s", index, len(planned), entry["scheduledDeparture"], entry["operatorName"])
         try:
             service = normalize(client.service(unique), entry["direction"], _now())
             if service and in_window(service):
                 services.append(service)
         except RttError as error:
+            LOGGER.warning("Could not collect %s: %s", unique, error)
             errors.append({"rttServiceId": unique, "error": str(error)})
     value = {"version": 1, "date": service_date, "collectedAt": _now(), "complete": not errors, "services": services, "errors": errors}
     write_json(daily_path(root, service_date), value)
+    LOGGER.info("Saved %d services for %s with %d errors", len(services), service_date, len(errors))
     return value
 
 
@@ -136,6 +152,7 @@ def generate_report(root: Path, service_date: str, action_only: bool = False) ->
         raise ValueError(f"No daily data for {service_date}. Run collect first.")
     claims = load_claims(root)
     services = daily.get("services", [])
+    LOGGER.info("Assessing %d stored services for %s", len(services), service_date)
     rows = []
     for service in services:
         evaluation = assess(service, services, claims.get(service["serviceId"]))
@@ -163,6 +180,11 @@ def generate_report(root: Path, service_date: str, action_only: bool = False) ->
     path = report_path(root, service_date)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = row["assessment"]["status"]
+        counts[status] = counts.get(status, 0) + 1
+    LOGGER.info("Wrote report %s; classifications: %s", path, counts or {"ACTIONABLE": 0})
     return text, rows
 
 
@@ -187,6 +209,7 @@ def report_lookback(root: Path, end_date: str, days: int, action_only: bool = Fa
         raise ValueError("Lookback days must be at least 1")
     end = date.fromisoformat(end_date)
     start = end - timedelta(days=days - 1)
+    LOGGER.info("Building %d-day report from %s to %s", days, start, end)
     chunks = []
     current = start
     while current <= end:
@@ -200,6 +223,7 @@ def report_lookback(root: Path, end_date: str, days: int, action_only: bool = Fa
     path = root / "reports" / f"lookback-{days}-days-ending-{end_date}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+    LOGGER.info("Wrote combined report %s from %d stored days", path, len(chunks))
     return text
 
 

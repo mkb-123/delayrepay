@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -8,6 +9,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+LOGGER = logging.getLogger("delayrepay.rtt")
 
 
 class RttError(RuntimeError):
@@ -38,8 +41,11 @@ class RttClient:
             self.base_url + path,
             headers={"Authorization": f"Bearer {token}", "Version": self.api_version, "Accept": "application/json"},
         )
+        endpoint = path.split("?", 1)[0]
+        LOGGER.info("RTT request: %s", endpoint)
         try:
             with urlopen(request, timeout=self.timeout) as response:
+                LOGGER.info("RTT response: %s %s", endpoint, response.status)
                 if response.status == 204:
                     return {"services": []}
                 return json.load(response)
@@ -49,6 +55,7 @@ class RttClient:
                 if delay > 1000:
                     delay /= 1000
                 time.sleep(delay)
+                LOGGER.warning("RTT rate limited; retrying %s after %.1f seconds", endpoint, delay)
                 return self._request(path, token, retries - 1)
             if error.code == 404:
                 raise RttError("RTT service not found") from error

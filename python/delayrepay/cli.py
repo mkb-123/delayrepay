@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from datetime import date, timedelta
 
@@ -51,6 +52,11 @@ def lookback_dates(end_date: str, days: int, latest_per_weekday: bool = False) -
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
     load_env()
     args = parser().parse_args(argv)
     root = data_dir()

@@ -39,6 +39,8 @@ python3 -m delayrepay report --date 2026-09-28 --lookback-days 14 --action-only
 
 The report is saved as `data-store/reports/2026-09-28.md`. Collection requires that weekday to exist in `data-store/service-catalogue.json` and that `.env` contains a valid RTT token.
 
+Every command prints timestamped progress to the terminal. Discovery shows lineup and candidate progress, collection shows each catalogue service, and reporting shows the number of assessments and output path. The Windows task captures the same output in `data-store/scheduled-task.log`. Authentication tokens are never included in logs.
+
 ## Requirements
 
 - Python 3.11 or newer
@@ -123,7 +125,7 @@ The current Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) rule
 
 ## Scheduling
 
-The repository includes `scripts/daily-brief.ps1` for Windows Task Scheduler. The local task runs through WSL at 19:00 every weekday, writes the report under `data-store/reports/`, and appends command output to `data-store/scheduled-task.log`. Do not schedule `discover`; rerun it only when you want to refresh the catalogue.
+The repository includes `scripts/daily-brief.ps1` for Windows Task Scheduler. The local task runs through WSL at 19:00 every weekday, collects the current day once, then produces an action-only report covering the last 10 calendar days. It writes reports under `data-store/reports/` and appends command output to `data-store/scheduled-task.log`. Do not schedule `discover`; rerun it only when you want to refresh the catalogue.
 
 Tests are intentionally deferred while the catalogue and report shapes are being finalised. The current no-network check is:
 
