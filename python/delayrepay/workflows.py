@@ -72,6 +72,8 @@ def discover_cached(root: Path, service_date: str, direction: str = "ALL") -> li
     weekday = _weekday(service_date)
     observation_dir = root / "observations" / service_date
     if not observation_dir.exists():
+        observation_dir = root.parent / "legacy" / "data-store" / "observations" / service_date
+    if not observation_dir.exists():
         raise ValueError(f"No cached RTT observations for {service_date}")
     found_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     selected = set(WINDOWS) if direction == "ALL" else {direction}

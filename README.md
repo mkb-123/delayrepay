@@ -110,7 +110,7 @@ Acknowledgements persist in `data-store/claims.json` and disappear from the outs
 
 ## Stored data and rules
 
-All retained state is plain JSON or Markdown under `data-store/`. This keeps the tool local, inspectable, and independent of PostgreSQL or GitHub Pages. Back up that directory if the history matters to you.
+Current Python state is plain JSON or Markdown under `data-store/`: the service catalogue, normalized daily records, reports, and claim acknowledgements. The original TypeScript archive, raw observations, old brief, and ingestion logs are retained under `legacy/data-store/`. This keeps the active tool local and inspectable while separating its data from the previous implementation.
 
 The current Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) rules live in `python/delayrepay/rules.py`, including official sources and verification dates. Ambiguous cancellations, missing arrivals, unsupported operators, and journeys with a potentially earlier alternative are classified as `Needs review`.
 
