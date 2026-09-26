@@ -102,7 +102,8 @@ function cell(service, threshold) {
   if (hidden) return '<td class="heat-muted">·</td>';
   const value = service.cancelled ? "×" : service.rawDelayMinutes == null ? "?" : service.rawDelayMinutes <= 0 ? "✓" : `+${service.rawDelayMinutes}`;
   const marker = a.status === "POTENTIAL" ? "!" : a.status === "CLAIMED" ? "✓" : a.status === "NEEDS_REVIEW" ? "?" : "";
-  return `<td><button class="heat-cell ${heat}" onclick="showService('${encodeURIComponent(service.serviceId)}')"><strong>${value}</strong>${marker ? `<span>${marker}</span>` : ""}</button></td>`;
+  const claimed = a.status === "CLAIMED" ? " heat-claimed" : "";
+  return `<td><button class="heat-cell ${heat}${claimed}" onclick="showService('${encodeURIComponent(service.serviceId)}')"><strong>${value}</strong>${marker ? `<span>${marker}</span>` : ""}</button></td>`;
 }
 
 function showService(encodedId) {
