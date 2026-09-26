@@ -27,9 +27,10 @@ class Database:
     def __init__(self, root: Path):
         root.mkdir(parents=True, exist_ok=True)
         self.path = root / "delayrepay.sqlite"
-        self.connection = sqlite3.connect(self.path)
+        self.connection = sqlite3.connect(self.path, timeout=10)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA journal_mode=WAL")
+        self.connection.execute("PRAGMA busy_timeout=10000")
         self.connection.execute("PRAGMA foreign_keys=ON")
         self._migrate()
         self._import_json_history(root)
@@ -122,6 +123,12 @@ class Database:
         ).fetchall()
         return [json.loads(row["payload_json"]) for row in rows]
 
+    def service_by_id(self, service_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT payload_json FROM services WHERE service_id=?", (service_id,)
+        ).fetchone()
+        return json.loads(row["payload_json"]) if row else None
+
     def stored_dates(self, start_date: str, end_date: str) -> list[str]:
         rows = self.connection.execute(
             "SELECT DISTINCT service_date FROM services WHERE service_date BETWEEN ? AND ? ORDER BY service_date", (start_date, end_date)
@@ -131,6 +138,18 @@ class Database:
     def collection_complete(self, service_date: str) -> bool:
         row = self.connection.execute("SELECT complete FROM collection_runs WHERE service_date=?", (service_date,)).fetchone()
         return bool(row["complete"]) if row else False
+
+    def collection_state(self, service_date: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT collected_at, complete, errors_json FROM collection_runs WHERE service_date=?", (service_date,)
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "collectedAt": row["collected_at"],
+            "complete": bool(row["complete"]),
+            "errors": json.loads(row["errors_json"]),
+        }
 
     def claimed_at(self, service_id: str) -> str | None:
         row = self.connection.execute("SELECT claimed_at FROM claims WHERE service_id=?", (service_id,)).fetchone()

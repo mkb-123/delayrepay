@@ -7,8 +7,9 @@ import sys
 from datetime import date, timedelta
 
 from .config import data_dir, load_env
-from .rtt import RttClient, RttError
-from .store import catalogue_path, read_json
+from .ingestion.rtt import RttClient, RttError
+from .storage.sqlite import catalogue_path, read_json
+from .refresh import CollectionBusyError, CollectionLock
 from .workflows import collect, discover, discover_cached, generate_report, report_lookback, report_week, set_claim
 
 
@@ -34,6 +35,9 @@ def parser() -> argparse.ArgumentParser:
     claim.add_argument("--date", required=True)
     claim.add_argument("--service", required=True)
     claim.add_argument("--undo", action="store_true")
+    serve = commands.add_parser("serve", help="Run the private local dashboard")
+    serve.add_argument("--host", help="Listener address (default: DELAYREPAY_HOST or 127.0.0.1)")
+    serve.add_argument("--port", type=int, help="Listener port (default: DELAYREPAY_PORT or 8765)")
     return root
 
 
@@ -78,7 +82,11 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "collect":
             dates = lookback_dates(args.date, args.lookback_days) if args.lookback_days else [args.date]
             client = None if args.dry_run else RttClient()
-            results = [collect(root, service_date, client, args.dry_run) for service_date in dates]
+            if args.dry_run:
+                results = [collect(root, service_date, client, True) for service_date in dates]
+            else:
+                with CollectionLock(root):
+                    results = [collect(root, service_date, client, False) for service_date in dates]
             if args.dry_run:
                 print(json.dumps({"dates": results, "requestCount": sum(item["requestCount"] for item in results)}, indent=2))
             else:
@@ -101,7 +109,22 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "claim":
             set_claim(root, args.date, args.service, args.undo)
             print("Claim acknowledgement removed." if args.undo else "Marked as claimed. This does not submit a claim.")
+        elif args.command == "serve":
+            import os
+            from logging.handlers import RotatingFileHandler
+            from waitress import serve
+            from .web import create_app
+
+            host = args.host or os.environ.get("DELAYREPAY_HOST", "127.0.0.1")
+            port = args.port or int(os.environ.get("DELAYREPAY_PORT", "8765"))
+            log_dir = root.parent / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            handler = RotatingFileHandler(log_dir / "server.log", maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
+            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+            logging.getLogger().addHandler(handler)
+            logging.getLogger("delayrepay").info("Dashboard listening on http://%s:%d", host, port)
+            serve(create_app(root), host=host, port=port, threads=4)
         return 0
-    except (ValueError, RttError) as error:
+    except (ValueError, RttError, CollectionBusyError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 2

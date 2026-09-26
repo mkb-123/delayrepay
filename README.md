@@ -1,136 +1,155 @@
 # MKC ↔ EUS Delay Repay
 
-Local Python tool for monitoring weekday trains between Milton Keynes Central and London Euston and identifying possible Delay Repay claims.
+A private Python tracker for weekday journeys between Milton Keynes Central and London Euston. It collects live running data from Realtime Trains, keeps the history in SQLite, explains possible Delay Repay eligibility, and provides a mobile dashboard on your home network.
 
-It monitors:
+It monitors direct services taking no more than 60 minutes: MKC → EUS from 06:00–08:00 and EUS → MKC from 16:30–18:00.
 
-- MKC → EUS departures from 06:00 to 08:00
-- EUS → MKC departures from 16:30 to 18:00
-- Direct journeys scheduled to take no more than 60 minutes
+## Repository layout
 
-The active application is the Python CLI. The original Next.js implementation and its data are retained under `legacy/`.
+- `python/delayrepay/domain/`: compensation assessment and operator rules
+- `python/delayrepay/ingestion/`: RTT client and service normalisation
+- `python/delayrepay/storage/`: SQLite persistence
+- `python/delayrepay/web/`: Flask API, dashboard HTML, CSS, and JavaScript
+- `python/delayrepay/workflows.py`: discovery, collection, and reporting orchestration
+- `data-store/service-catalogue.json`: tracked, stable timetable catalogue
+- `data-store/delayrepay.sqlite`: tracked service, assessment, and claim history
+- `data-store/output/`: generated JSON and Markdown reports, ignored by Git
+- `scripts/`: Windows scheduled collector and local-server setup
+- `legacy/`: archived implementations and old data
 
-## Quick start
+Source code, the catalogue, and SQLite history are committed. Credentials, logs, SQLite WAL files, virtual environments, and generated reports are ignored.
 
-Run the registered Windows task from PowerShell:
+## Install in WSL
+
+Requirements are WSL with Ubuntu, Python 3.11 or newer, and a Realtime Trains API token.
+
+From PowerShell, install Ubuntu's virtual-environment support once if needed:
+
+```powershell
+wsl -u root apt-get update
+wsl -u root apt-get install -y python3-venv
+```
+
+Then run in WSL:
+
+```bash
+cd /mnt/c/Users/mitzb/code/delayrepay
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+cp .env.example .env
+```
+
+Put either `RTT_ACCESS_TOKEN` or `RTT_REFRESH_TOKEN` in `.env`. Never put a real token in `.env.example`; `.env` is ignored by Git.
+
+## Run the dashboard
+
+In WSL:
+
+```bash
+cd /mnt/c/Users/mitzb/code/delayrepay
+.venv/bin/delayrepay serve
+```
+
+The WSL listener is `http://127.0.0.1:8765`.
+
+To expose it to your phone on the same Wi-Fi and start it at Windows login, open **PowerShell as Administrator** and run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+C:\Users\mitzb\code\delayrepay\scripts\setup-local-server.ps1
+```
+
+This creates a hidden `MKC EUS Delay Repay Server` login task with automatic restart, a Windows port-forward on port `8787`, and a firewall rule allowing that port only from the local subnet. It prints the phone URL. The laptop must be signed in, awake, and connected to the home network.
+
+Server logs rotate under `logs/server.log` at 5 MB with three backups. Useful Windows commands are:
+
+```powershell
+Get-ScheduledTask -TaskName "MKC EUS Delay Repay Server"
+Start-ScheduledTask -TaskName "MKC EUS Delay Repay Server"
+Get-Content C:\Users\mitzb\code\delayrepay\logs\server.log -Tail 50
+```
+
+## Dashboard behavior
+
+The dashboard defaults to the last ten days and supports 30-day, complete-history, and custom ranges. It filters by direction, operator, and assessment status.
+
+`Refresh RTT` first shows the missing or incomplete dates and estimated request count. Confirmation collects only those weekdays. It never runs timetable discovery. Web refresh and scheduled collection share a lock and cannot run concurrently.
+
+`Mark as claimed` is an acknowledgement only. It updates SQLite and does not submit anything to a train operator. Claim and undo changes persist after restart.
+
+## Data workflow
+
+### 1. Discover relevant trains occasionally
+
+Discovery is the expensive step and is never scheduled automatically:
+
+```bash
+.venv/bin/delayrepay discover --date 2026-09-28
+.venv/bin/delayrepay discover --date 2026-09-28 --direction evening
+.venv/bin/delayrepay discover --date 2026-10-02 --lookback-days 14
+```
+
+Cached discovery makes no RTT calls:
+
+```bash
+.venv/bin/delayrepay discover --date 2026-09-25 --from-cache
+```
+
+### 2. Collect running data
+
+Preview exact calls without contacting RTT:
+
+```bash
+.venv/bin/delayrepay collect --date 2026-10-02 --lookback-days 10 --dry-run
+```
+
+Collect data:
+
+```bash
+.venv/bin/delayrepay collect --date 2026-10-02
+.venv/bin/delayrepay collect --date 2026-10-02 --lookback-days 10
+```
+
+### 3. Generate optional files
+
+The dashboard reads SQLite directly. JSON and Markdown remain useful portable outputs:
+
+```bash
+.venv/bin/delayrepay report --date 2026-10-02
+.venv/bin/delayrepay report --date 2026-10-02 --lookback-days 10 --action-only
+.venv/bin/delayrepay report-week --week-start 2026-09-28
+```
+
+Each run replaces `data-store/output/latest.json` and `latest.md`. Reporting makes no RTT calls.
+
+## Existing weekday collector
+
+The `MKC EUS Delay Repay` Windows task runs at 19:00 Monday–Friday. Run it manually with:
 
 ```powershell
 Start-ScheduledTask -TaskName "MKC EUS Delay Repay"
 ```
 
-The task runs automatically at 19:00 Monday–Friday. It collects the latest weekday and creates a 10-day action report using plain PowerShell, WSL, and Python. No AI model is involved.
+It collects the latest weekday and generates a ten-day action report without an AI model. Output is logged to `data-store/scheduled-task.log`.
 
-Check progress and output:
+## Claims and rules
 
-```powershell
-Get-Content C:\Users\mitzb\code\delayrepay\data-store\scheduled-task.log -Tail 50
-Get-Content C:\Users\mitzb\code\delayrepay\data-store\output\latest.md
-```
-
-The structured version is `data-store/output/latest.json`.
-
-## Setup in WSL
-
-Requirements:
-
-- Python 3.11 or newer
-- A Realtime Trains API access or refresh token
+CLI acknowledgement remains available:
 
 ```bash
-cd /mnt/c/Users/mitzb/code/delayrepay
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-cp .env.example .env
+.venv/bin/delayrepay claim --date 2026-10-02 --service "SERVICE_ID"
+.venv/bin/delayrepay claim --date 2026-10-02 --service "SERVICE_ID" --undo
 ```
 
-Set either `RTT_ACCESS_TOKEN` or `RTT_REFRESH_TOKEN` in `.env`. The file is ignored by Git, and credentials are never stored or logged.
-
-If you do not install the package, run commands from the repository with:
-
-```bash
-export PYTHONPATH=python
-python3 -m delayrepay --help
-```
-
-## Workflow
-
-### 1. Discover the timetable
-
-Discovery is an occasional catalogue refresh. It is the expensive step and should not be scheduled.
-
-```bash
-python -m delayrepay discover --date 2026-09-28
-python -m delayrepay discover --date 2026-09-28 --direction evening
-python -m delayrepay discover --date 2026-10-02 --lookback-days 14
-```
-
-Direction-scoped discovery preserves the other direction. A lookback discovers only the latest occurrence of each weekday, with at most five timetable snapshots. Relevant services are saved in `data-store/service-catalogue.json`; `service-catalogue.md` is its readable view.
-
-Cached discovery makes no RTT calls:
-
-```bash
-python -m delayrepay discover --date 2026-09-25 --from-cache
-```
-
-### 2. Collect running data
-
-Preview calls without contacting RTT:
-
-```bash
-python -m delayrepay collect --date 2026-10-02 --lookback-days 10 --dry-run
-```
-
-Collect one day or a range:
-
-```bash
-python -m delayrepay collect --date 2026-10-02
-python -m delayrepay collect --date 2026-10-02 --lookback-days 10
-```
-
-Collection uses the catalogue and upserts services into `data-store/delayrepay.sqlite`. Missing catalogue weekdays are skipped rather than recorded as empty successful runs.
-
-### 3. Generate output
-
-```bash
-python -m delayrepay report --date 2026-10-02
-python -m delayrepay report --date 2026-10-02 --lookback-days 10 --action-only
-python -m delayrepay report-week --week-start 2026-09-28
-```
-
-Reporting makes no RTT calls. It queries SQLite, writes `data-store/output/latest.json`, then renders `latest.md` from that JSON. Each run replaces the previous output instead of accumulating duplicate report files.
-
-`--lookback-days` and its alias `--lookup-days` work with discovery, collection, and reporting.
-
-## Claims
-
-Copy a `serviceId` from `latest.json`:
-
-```bash
-python -m delayrepay claim --date 2026-10-02 --service "SERVICE_ID"
-python -m delayrepay claim --date 2026-10-02 --service "SERVICE_ID" --undo
-```
-
-Claim acknowledgement is stored independently in SQLite and survives service refreshes. It records only that you acknowledged the item; it does not submit a claim.
-
-## Storage
-
-- `data-store/service-catalogue.json`: discovered timetable configuration
-- `data-store/delayrepay.sqlite`: services, collection runs, assessments, and claims
-- `data-store/output/latest.json`: complete structured report for visualisation
-- `data-store/output/latest.md`: concise human-readable report
-- `data-store/scheduled-task.log`: Windows task output
-
-The SQLite database and catalogue are tracked in Git. SQLite WAL and shared-memory files, generated output, logs, and `.env` are ignored. Scheduled updates modify the local database; updating GitHub still requires a commit and push.
-
-The current Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) policies are defined in `python/delayrepay/rules.py` with official source URLs and verification dates. Ambiguous evidence is classified as `Needs review`.
+Avanti West Coast (`VT`) and London Northwestern Railway (`LM`) policies and official source links live in `python/delayrepay/domain/rules.py`. Missing or ambiguous evidence is classified as `Needs review`.
 
 ## Validation
 
-Tests remain deferred while the real workflow is being finalised. The current no-network checks are:
+No committed automated test suite has been added yet. Safe local checks are:
 
 ```bash
-python -m compileall -q python
-python -m delayrepay --help
-python -m delayrepay collect --date 2026-10-02 --dry-run
+.venv/bin/python -m compileall -q python
+.venv/bin/delayrepay --help
+.venv/bin/delayrepay collect --date 2026-10-02 --dry-run
+curl http://127.0.0.1:8765/health
 ```

@@ -4,9 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mkc-eus-delayrepay"
-version = "0.3.0"
-description = "Local MKC-EUS Delay Repay briefing tool"
+version = "0.4.0"
+description = "Local MKC-EUS Delay Repay tracker and private dashboard"
 requires-python = ">=3.11"
+dependencies = [
+    "Flask>=3.1,<4",
+    "waitress>=3.0,<4",
+]
 
 [project.scripts]
 delayrepay = "delayrepay.cli:main"
@@ -16,3 +20,6 @@ package-dir = {"" = "python"}
 
 [tool.setuptools.packages.find]
 where = ["python"]
+
+[tool.setuptools.package-data]
+"delayrepay.web" = ["templates/*.html", "static/*.css", "static/*.js"]

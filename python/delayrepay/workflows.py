@@ -5,10 +5,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .assess import assess
-from .rtt import RttClient, RttError
-from .services import WINDOWS, in_window, normalize
-from .store import Database, catalogue_path, read_json, write_json
+from .domain.assessment import assess
+from .ingestion.rtt import RttClient, RttError
+from .ingestion.services import WINDOWS, in_window, normalize
+from .storage.sqlite import Database, catalogue_path, read_json, write_json
 
 LOGGER = logging.getLogger("delayrepay.workflow")
 
@@ -149,7 +149,7 @@ def generate_report(root: Path, service_date: str, action_only: bool = False) ->
     return write_latest_report(root, report_data)
 
 
-def build_report_data(database: Database, service_date: str, action_only: bool) -> dict[str, Any]:
+def build_report_data(database: Database, service_date: str, action_only: bool, persist: bool = True) -> dict[str, Any]:
     services = database.services_for_date(service_date)
     if not services:
         raise ValueError(f"No stored services for {service_date}. Run collect first.")
@@ -158,7 +158,8 @@ def build_report_data(database: Database, service_date: str, action_only: bool) 
     assessed_at = _now()
     for service in services:
         evaluation = assess(service, services, database.claimed_at(service["serviceId"]))
-        database.save_assessment(service["serviceId"], assessed_at, evaluation)
+        if persist:
+            database.save_assessment(service["serviceId"], assessed_at, evaluation)
         all_rows.append({**service, "assessment": evaluation})
     rows = all_rows
     if action_only:

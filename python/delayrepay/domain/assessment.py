@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .rules import RULES
-from .services import minutes_between
+from ..ingestion.services import minutes_between
 
 
 def assess(service: dict[str, Any], all_services: list[dict[str, Any]], claimed_at: str | None = None) -> dict[str, Any]:

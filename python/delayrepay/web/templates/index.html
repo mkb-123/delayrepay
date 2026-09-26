@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Delay Repay</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+  <header>
+    <div><p class="eyebrow">MKC ↔ EUS</p><h1>Delay Repay</h1></div>
+    <button id="refreshButton" class="secondary">Refresh RTT</button>
+  </header>
+  <main>
+    <section class="hero">
+      <span>Potential claims</span>
+      <strong id="potentialCount">—</strong>
+      <p id="rangeLabel">Loading history…</p>
+    </section>
+
+    <section class="summary" aria-label="Summary">
+      <div><strong id="reviewCount">—</strong><span>Needs review</span></div>
+      <div><strong id="claimedCount">—</strong><span>Claimed</span></div>
+      <div><strong id="incompleteCount">—</strong><span>Incomplete days</span></div>
+    </section>
+
+    <section class="controls">
+      <label>Period
+        <select id="period">
+          <option value="10">Last 10 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="all">All stored</option>
+          <option value="custom">Custom dates</option>
+        </select>
+      </label>
+      <label id="fromWrap" hidden>From <input type="date" id="fromDate"></label>
+      <label id="toWrap" hidden>To <input type="date" id="toDate"></label>
+      <label>Direction
+        <select id="direction"><option value="">All</option><option>MORNING</option><option>EVENING</option></select>
+      </label>
+      <label>Operator <select id="operator"><option value="">All</option></select></label>
+      <label>Status
+        <select id="status"><option value="">All</option><option value="POTENTIAL">Potential claim</option><option value="NEEDS_REVIEW">Needs review</option><option value="CLAIMED">Claimed</option><option value="NO_CLAIM">No claim</option></select>
+      </label>
+    </section>
+
+    <div id="notice" class="notice" hidden></div>
+    <section id="results" aria-live="polite"></section>
+  </main>
+
+  <dialog id="refreshDialog">
+    <form method="dialog">
+      <h2>Refresh the last 10 days?</h2>
+      <div id="refreshPlan">Checking what is missing…</div>
+      <div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button id="confirmRefresh" value="default">Refresh</button></div>
+    </form>
+  </dialog>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
