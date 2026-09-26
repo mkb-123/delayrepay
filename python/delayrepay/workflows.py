@@ -138,7 +138,8 @@ def generate_report(root: Path, service_date: str, action_only: bool = False) ->
         lines.extend([f"## {direction.title()} — {window['origin']} → {window['destination']}", "", "| Train | Delay | Can I claim? |", "|---:|---:|---|"])
         section = [row for row in rows if row["direction"] == direction]
         if not section:
-            lines.append("| — | — | No stored services |")
+            stored = any(service.get("direction") == direction for service in services)
+            lines.append(f"| — | — | {'No action required' if stored and action_only else 'No stored services'} |")
         for row in section:
             assessment = row["assessment"]
             delay = "Cancelled" if row["cancelled"] else ("Unknown" if row["rawDelayMinutes"] is None else f"{max(0, row['rawDelayMinutes'])} min")
