@@ -135,13 +135,20 @@ Each run replaces `data-store/output/latest.json` and `latest.md`. Reporting mak
 
 ## Existing weekday collector
 
-The `MKC EUS Delay Repay` Windows task runs at 19:00 Monday–Friday. Run it manually with:
+Install or repair the scheduled task with:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+& ".\scripts\setup-daily-task.ps1"
+```
+
+The `MKC EUS Delay Repay` Windows task runs at 19:00 Monday–Friday, catches up when the laptop next becomes available, and can run on battery. Run it manually with:
 
 ```powershell
 Start-ScheduledTask -TaskName "MKC EUS Delay Repay"
 ```
 
-It collects the latest weekday and generates a ten-day action report without an AI model. Output is logged to `data-store/scheduled-task.log`.
+It recollects the latest ten calendar days and generates a ten-day action report without an AI model. Output is logged to `data-store/scheduled-task.log`.
 
 ## Claims and rules
 

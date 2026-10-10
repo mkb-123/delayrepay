@@ -7,9 +7,11 @@ while ($targetDate.DayOfWeek -in @([DayOfWeek]::Saturday, [DayOfWeek]::Sunday)) 
 }
 $serviceDate = $targetDate.ToString("yyyy-MM-dd")
 $logPath = Join-Path (Split-Path $PSScriptRoot -Parent) "data-store\scheduled-task.log"
-$command = "cd $repository && if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else export PYTHONPATH=python; PY=python3; fi; `$PY -m delayrepay collect --date $serviceDate && `$PY -m delayrepay report --date $serviceDate --lookback-days 10 --action-only"
+$collectArguments = "collect --date $serviceDate --lookback-days 10"
+$reportArguments = "report --date $serviceDate --lookback-days 10 --action-only"
+$command = "cd '$repository' && { if [ -x .venv/bin/python ]; then .venv/bin/python -m delayrepay $collectArguments && .venv/bin/python -m delayrepay $reportArguments; else PYTHONPATH=python python3 -m delayrepay $collectArguments && PYTHONPATH=python python3 -m delayrepay $reportArguments; fi; } 2>&1"
 
-& wsl.exe bash -lc $command 2>&1 | Tee-Object -FilePath $logPath -Append
+& wsl.exe bash -lc $command | Tee-Object -FilePath $logPath -Append
 if ($LASTEXITCODE -ne 0) {
     throw "Delay Repay briefing failed with exit code $LASTEXITCODE. See $logPath"
 }
