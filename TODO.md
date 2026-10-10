@@ -72,8 +72,8 @@ The Saturday email currently sends through `smtp.gmail.com` using `GMAIL_SMTP_US
 
 ### Required design
 
-1. Use the Gmail API `users.messages.send` method.
-2. Request only the narrow `https://www.googleapis.com/auth/gmail.send` scope.
+1. Use the Gmail API `users.messages.send` method for the Saturday summary.
+2. Request `https://www.googleapis.com/auth/gmail.send` for sending and `https://www.googleapis.com/auth/gmail.readonly` for claim reconciliation. Do not request permission to modify or delete mail.
 3. Add a one-time command such as `delayrepay gmail-authorize` using Google's Desktop app OAuth flow.
 4. Read the downloaded OAuth client file from a configurable path, for example `GMAIL_OAUTH_CLIENT_FILE`.
 5. Store the resulting refresh-token file outside Git at a configurable path, for example `GMAIL_OAUTH_TOKEN_FILE`.
@@ -106,6 +106,58 @@ Add compatible versions of:
 - `google-auth-httplib2`
 - `google-auth-oauthlib`
 
+## Reconcile claims from Gmail
+
+After OAuth is available, scan claim-response emails so the tracker can tell whether a suggested claim was submitted and whether the operator accepted, rejected, or paid it.
+
+### Behaviour
+
+1. Search only recent messages from known Avanti and LNR/West Midlands claim-system senders. Keep the sender allowlist configurable because the actual addresses must be learned from real received emails rather than guessed.
+2. Detect these outcomes:
+   - claim received/submitted;
+   - approved;
+   - rejected;
+   - paid, when the email explicitly confirms payment.
+3. Match an email to a stored journey using the operator, travel date, scheduled service time, route, and claim reference where available.
+4. Automatically update a journey only when the match and outcome are explicit.
+5. Put weak, conflicting, or multi-journey matches into `Needs review` with an inspectable explanation.
+6. Never treat an email merely containing words such as “claim” or “delay” as proof of submission or success.
+7. Run reconciliation before building the Saturday summary so handled claims move out of the action list.
+8. Add a manual rescan command and show the last successful Gmail scan in operational health information.
+
+### Data model
+
+Add versioned schema support for claim lifecycle states such as:
+
+- `POTENTIAL`
+- `SUBMITTED`
+- `APPROVED`
+- `REJECTED`
+- `PAID`
+- `NOT_CLAIMABLE`
+
+Store a minimal event record containing:
+
+- unique Gmail message ID;
+- matched service ID, when known;
+- operator and claim reference;
+- detected outcome and confidence;
+- received timestamp;
+- matching explanation;
+- parser version.
+
+Do not persist complete email bodies or attachments. Fetch only the headers, snippet, or body content required for matching, and never log message content or OAuth credentials.
+
+### Reconciliation acceptance criteria
+
+- Re-running the scan is idempotent and does not create duplicate events.
+- A clear “claim received” email changes the matched journey to `SUBMITTED`.
+- Clear approval, rejection, and payment messages update the same claim lifecycle.
+- An email covering an unknown or ambiguous journey changes no claim automatically and appears as a review item.
+- Gmail messages remain unread/read exactly as they were; the app has read-only mailbox access.
+- The Saturday email excludes submitted, approved, rejected, and paid claims from its outstanding claim suggestions and shows them under the appropriate handled summary.
+- Revoking Gmail access stops scanning cleanly without affecting rail collection or the dashboard.
+
 ### Migration and Pi notes
 
 - Perform the first browser authorization on a machine with a browser.
@@ -119,6 +171,7 @@ Add compatible versions of:
 - `delayrepay gmail-authorize` completes one-time browser consent and writes an ignored token file.
 - `delayrepay email-summary --dry-run` makes no network call.
 - `delayrepay email-summary` sends the existing concise summary through the Gmail API.
+- `delayrepay gmail-reconcile` scans claim responses before the summary is generated.
 - A second send succeeds without opening a browser.
 - The Windows task and Raspberry Pi timer work unattended after reboot.
 - No Gmail password, app password, OAuth client secret, access token, or refresh token is committed or logged.
