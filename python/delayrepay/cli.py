@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 from .config import data_dir, load_env
 from .ingestion.rtt import RttClient, RttError
-from .storage.sqlite import catalogue_path, read_json
+from .storage.sqlite import Database, catalogue_path, read_json
 from .refresh import CollectionBusyError, CollectionLock
 from .workflows import collect, discover, discover_cached, generate_report, report_lookback, report_week, set_claim
 
@@ -38,6 +38,11 @@ def parser() -> argparse.ArgumentParser:
     serve = commands.add_parser("serve", help="Run the private local dashboard")
     serve.add_argument("--host", help="Listener address (default: DELAYREPAY_HOST or 127.0.0.1)")
     serve.add_argument("--port", type=int, help="Listener port (default: DELAYREPAY_PORT or 8765)")
+    email = commands.add_parser("email-summary", help="Email outstanding claim suggestions")
+    email.add_argument("--date", default=date.today().isoformat(), help="Last date included (YYYY-MM-DD)")
+    email.add_argument("--lookback-days", type=int, default=10)
+    email.add_argument("--to", help="Recipient; defaults to DELAYREPAY_EMAIL_TO")
+    email.add_argument("--dry-run", action="store_true", help="Print the email without sending it")
     return root
 
 
@@ -124,6 +129,17 @@ def main(argv: list[str] | None = None) -> int:
             logging.getLogger().addHandler(handler)
             logging.getLogger("delayrepay").info("Dashboard listening on http://%s:%d", host, port)
             serve(create_app(root), host=host, port=port, threads=4)
+        elif args.command == "email-summary":
+            from .emailing import build_summary, send_summary
+
+            with Database(root) as database:
+                if args.dry_run:
+                    subject, plain, _markup = build_summary(database, args.date, args.lookback_days)
+                    print(subject)
+                    print(plain)
+                else:
+                    subject = send_summary(database, args.date, args.lookback_days, args.to)
+                    print(f"Sent: {subject}")
         return 0
     except (ValueError, RttError, CollectionBusyError) as error:
         print(f"Error: {error}", file=sys.stderr)

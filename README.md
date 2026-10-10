@@ -150,6 +150,32 @@ Start-ScheduledTask -TaskName "MKC EUS Delay Repay"
 
 It recollects the latest ten calendar days and generates a ten-day action report without an AI model. Output is logged to `data-store/scheduled-task.log`.
 
+## Saturday email
+
+The `MKC EUS Delay Repay Email` task sends a short list of outstanding claim suggestions and decisions at 09:00 every Saturday. It omits acknowledged days and claimed journeys.
+
+Add these values to the ignored `.env` file:
+
+```dotenv
+DELAYREPAY_EMAIL_TO=you@example.com
+GMAIL_SMTP_USER=you@gmail.com
+GMAIL_APP_PASSWORD=your_16_character_app_password
+```
+
+Use a Google app password rather than your normal Gmail password. Then install or repair the task:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+& ".\scripts\setup-weekly-email-task.ps1"
+```
+
+Preview without sending or send immediately:
+
+```bash
+.venv/bin/delayrepay email-summary --date 2026-10-09 --lookback-days 10 --dry-run
+.venv/bin/delayrepay email-summary --date 2026-10-09 --lookback-days 10
+```
+
 ## Claims and rules
 
 CLI acknowledgement remains available:
