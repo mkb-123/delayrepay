@@ -176,6 +176,10 @@ Preview without sending or send immediately:
 .venv/bin/delayrepay email-summary --date 2026-10-09 --lookback-days 10
 ```
 
+## Raspberry Pi
+
+For an always-on Raspberry Pi deployment with systemd services, weekday collection, Saturday email, mDNS, and SQLite migration, follow [deploy/raspberry-pi/README.md](deploy/raspberry-pi/README.md).
+
 ## Claims and rules
 
 CLI acknowledgement remains available:
