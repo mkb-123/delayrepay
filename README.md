@@ -166,6 +166,7 @@ Add these values to the ignored `.env` file:
 DELAYREPAY_EMAIL_TO=you@example.com
 GMAIL_SMTP_USER=you@gmail.com
 GMAIL_APP_PASSWORD=your_16_character_app_password
+DELAYREPAY_DASHBOARD_URL=http://delayrepay.local:8765
 ```
 
 Use a Google app password rather than your normal Gmail password. Then install or repair the task:
