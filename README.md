@@ -158,6 +158,11 @@ The scheduling workflow itself is implemented in Python and can be run on any pl
 
 ## Saturday email
 
+The reusable agent prompt at
+[`prompts/reconcile-gmail-claims.md`](prompts/reconcile-gmail-claims.md) defines
+the cautious workflow for matching Gmail claim responses to stored journeys.
+It requires read-only mailbox handling and leaves ambiguous matches for review.
+
 The `MKC EUS Delay Repay Email` task sends a short list of outstanding claim suggestions and decisions at 09:00 every Saturday. It omits acknowledged days and claimed journeys.
 
 Add these values to the ignored `.env` file:
