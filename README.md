@@ -150,6 +150,12 @@ Start-ScheduledTask -TaskName "MKC EUS Delay Repay"
 
 It recollects the latest ten calendar days and generates a ten-day action report without an AI model. Output is logged to `data-store/scheduled-task.log`.
 
+The scheduling workflow itself is implemented in Python and can be run on any platform:
+
+```bash
+.venv/bin/delayrepay daily-brief
+```
+
 ## Saturday email
 
 The `MKC EUS Delay Repay Email` task sends a short list of outstanding claim suggestions and decisions at 09:00 every Saturday. It omits acknowledged days and claimed journeys.
@@ -172,9 +178,11 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 Preview without sending or send immediately:
 
 ```bash
-.venv/bin/delayrepay email-summary --date 2026-10-09 --lookback-days 10 --dry-run
-.venv/bin/delayrepay email-summary --date 2026-10-09 --lookback-days 10
+.venv/bin/delayrepay email-summary --dry-run
+.venv/bin/delayrepay email-summary
 ```
+
+Both commands choose the latest weekday and a ten-day lookback by default. PowerShell, Bash, Task Scheduler, and systemd only launch these Python commands.
 
 ## Raspberry Pi
 

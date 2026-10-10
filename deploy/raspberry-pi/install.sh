@@ -65,7 +65,7 @@ Group=$run_group
 WorkingDirectory=$repo_dir
 EnvironmentFile=$repo_dir/.env
 Environment=DELAYREPAY_REPO_DIR=$repo_dir
-ExecStart=$repo_dir/scripts/linux/daily-brief.sh
+ExecStart=$repo_dir/.venv/bin/python -m delayrepay daily-brief
 EOF
 
 sudo tee /etc/systemd/system/delayrepay-collect.timer >/dev/null <<'EOF'
@@ -94,7 +94,7 @@ Group=$run_group
 WorkingDirectory=$repo_dir
 EnvironmentFile=$repo_dir/.env
 Environment=DELAYREPAY_REPO_DIR=$repo_dir
-ExecStart=$repo_dir/scripts/linux/weekly-email.sh
+ExecStart=$repo_dir/.venv/bin/python -m delayrepay email-summary
 EOF
 
 sudo tee /etc/systemd/system/delayrepay-email.timer >/dev/null <<'EOF'
