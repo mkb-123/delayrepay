@@ -38,11 +38,12 @@ async function load() {
 
 function renderHealth() {
   const value = data.operations || {};
+  const collection = value.lastCollection ? `Rail data refreshed ${timestamp(value.lastCollection)}` : "Rail data not collected";
   const gmail = value.gmailConfigured ? `Gmail checked ${timestamp(value.lastGmailReconciliation)}` : "Gmail authorization needed";
   const backup = value.lastBackup ? `Backup ${timestamp(value.lastBackup)}` : "No backup found";
   const mirror = !value.backupMirrorConfigured ? "Off-device backup not configured" : value.backupMirrorAvailable ? "Off-device backup available" : "Off-device backup unavailable";
   const review = value.emailReview?.length || 0;
-  $("systemHealth").innerHTML = `<span class="${value.gmailConfigured ? "health-ok" : "health-warn"}">${esc(gmail)}</span><span class="${value.lastBackup ? "health-ok" : "health-warn"}">${esc(backup)}</span><span class="${value.backupMirrorAvailable ? "health-ok" : "health-warn"}">${esc(mirror)}</span>${review ? `<button class="health-review" onclick="openEmailReview()">${review} email${review === 1 ? "" : "s"} to match</button>` : ""}`;
+  $("systemHealth").innerHTML = `<span class="${value.lastCollection ? "health-ok" : "health-warn"}">${esc(collection)}</span><span class="${value.gmailConfigured ? "health-ok" : "health-warn"}">${esc(gmail)}</span><span class="${value.lastBackup ? "health-ok" : "health-warn"}">${esc(backup)}</span><span class="${value.backupMirrorAvailable ? "health-ok" : "health-warn"}">${esc(mirror)}</span>${review ? `<button class="health-review" onclick="openEmailReview()">${review} email${review === 1 ? "" : "s"} to match</button>` : ""}`;
 }
 
 function renderClaimPipeline() {

@@ -196,6 +196,10 @@ class Database:
             "errors": json.loads(row["errors_json"]),
         }
 
+    def latest_collection_time(self) -> str | None:
+        row = self.connection.execute("SELECT max(collected_at) AS collected_at FROM collection_runs").fetchone()
+        return row["collected_at"] if row else None
+
     def claimed_at(self, service_id: str) -> str | None:
         row = self.connection.execute("SELECT claimed_at FROM claims WHERE service_id=?", (service_id,)).fetchone()
         return row["claimed_at"] if row else None

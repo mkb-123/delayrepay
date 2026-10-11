@@ -124,6 +124,7 @@ def create_app(root: Path | str | None = None) -> Flask:
                 reports.append(build_report_data(database, service_date, False, persist=False))
             email_review = database.claim_email_events_needing_review()
             last_reconciliation = database.metadata_value("last_gmail_reconciliation")
+            last_collection = database.latest_collection_time()
         totals = {"potentialClaims": 0, "needsReview": 0, "claimed": 0, "noClaim": 0, "incompleteDays": 0}
         for report in reports:
             for key in ("potentialClaims", "needsReview", "claimed", "noClaim"):
@@ -134,6 +135,7 @@ def create_app(root: Path | str | None = None) -> Flask:
         token_value = os.environ.get("GMAIL_OAUTH_TOKEN_FILE", "").strip()
         operations = {
             "lastGmailReconciliation": last_reconciliation,
+            "lastCollection": last_collection,
             "gmailConfigured": bool(token_value and Path(token_value).is_file()),
             "emailReview": email_review,
             "lastBackup": datetime.fromtimestamp(backups[0].stat().st_mtime, timezone.utc).isoformat() if backups else None,
