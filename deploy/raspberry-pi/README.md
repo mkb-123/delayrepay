@@ -12,6 +12,72 @@ This setup targets Raspberry Pi OS or another Debian-based distribution with sys
 - Avahi/mDNS access at `http://delayrepay.local` through Nginx;
 - runtime SQLite and catalogue files in `/var/lib/delayrepay`, separate from Git.
 
+## What is reproducible
+
+Git is the source of truth for the Delay Repay code, Python dependencies,
+Nginx proxy, mDNS alias, systemd services, and schedules. Running `install.sh`
+on a clean Raspberry Pi OS installation recreates all of them.
+
+The live database and credentials cannot safely be stored in Git. They are
+preserved in a private recovery bundle containing:
+
+- SQLite history and claim acknowledgements;
+- the discovered service catalogue;
+- `.env` and RTT/email settings;
+- Gmail OAuth client and token files, when configured.
+
+Store that bundle on encrypted removable storage or a private NAS. This
+repository only rebuilds Delay Repay. Home Assistant and any other software on
+the Pi require their own configuration and backup procedure.
+
+## Before replacing or reflashing the SD card
+
+Connect or mount the private backup destination, then run:
+
+```bash
+cd ~/delayrepay
+./deploy/raspberry-pi/export-state.sh /mnt/backup/delayrepay-recovery
+```
+
+The command prints the new timestamped bundle path. Copy that entire directory
+off the SD card. It contains secrets in plain text, so the destination must be
+private and encrypted.
+
+For automatic off-device database copies, set this in `.env` after mounting a
+USB disk or NAS permanently:
+
+```dotenv
+DELAYREPAY_BACKUP_MIRROR_DIR=/mnt/backup/delayrepay-database
+```
+
+The nightly backup then writes locally and to that directory. It fails loudly
+if the configured mount disappears, avoiding a false sense of protection.
+
+## Rebuild from a fresh Raspberry Pi OS image
+
+Configure the network and SSH during Raspberry Pi OS imaging. After the first
+boot, copy the newest recovery bundle onto the Pi or mount the device that
+contains it, then run:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git
+git clone https://github.com/mkb-123/delayrepay.git ~/delayrepay
+cd ~/delayrepay
+install -m 600 /mnt/backup/delayrepay-recovery/<bundle>/.env .env
+chmod +x deploy/raspberry-pi/*.sh scripts/linux/*.sh
+./deploy/raspberry-pi/install.sh
+./deploy/raspberry-pi/restore-state.sh \
+  /mnt/backup/delayrepay-recovery/<bundle>/delayrepay.sqlite \
+  /mnt/backup/delayrepay-recovery/<bundle>
+./deploy/raspberry-pi/verify.sh
+```
+
+Replace `<bundle>` with the timestamped directory created by `export-state.sh`.
+The restore checks SQLite integrity before replacing live data. The final
+verification checks the web service, proxy, mDNS publisher, timers, database,
+and optional Gmail authorization.
+
 ## Migration
 
 Clone the repository on the Pi:
@@ -96,9 +162,9 @@ journalctl -u delayrepay-reconcile.service -n 100
 ```
 
 Backups are written safely with SQLite's backup API to
-`/var/lib/delayrepay/backups`. To restore one, stop the dashboard, copy the
-chosen backup over `/var/lib/delayrepay/delayrepay.sqlite`, set ownership to the
-service user, and start the dashboard again.
+`/var/lib/delayrepay/backups`. Use `export-state.sh` for a complete portable
+recovery bundle and `restore-state.sh` to restore one. Run `verify.sh` after an
+install, restore, update, or reboot.
 
 ## Cut over from Windows
 

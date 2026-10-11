@@ -17,6 +17,12 @@ It monitors direct services taking no more than 60 minutes: MKC → EUS from 06:
 - `scripts/`: Windows scheduled collector and local-server setup
 - `legacy/`: archived implementations and old data
 
+The complete Raspberry Pi install, backup, restore, and clean-image rebuild
+procedure is documented in
+[`deploy/raspberry-pi/README.md`](deploy/raspberry-pi/README.md). Machine config
+is generated from the repository; live data and secrets use a private recovery
+bundle outside Git.
+
 Source code, the catalogue, and SQLite history are committed. Credentials, logs, SQLite WAL files, virtual environments, and generated reports are ignored.
 
 ## Install in WSL

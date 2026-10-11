@@ -6,6 +6,8 @@ run_user="${SUDO_USER:-$USER}"
 run_group="$(id -gn "$run_user")"
 data_dir="/var/lib/delayrepay"
 
+chmod +x "$repo_dir"/deploy/raspberry-pi/*.sh "$repo_dir"/scripts/linux/*.sh
+
 if [[ ! -f "$repo_dir/.env" ]]; then
   cp "$repo_dir/deploy/raspberry-pi/delayrepay.env.example" "$repo_dir/.env"
   chmod 600 "$repo_dir/.env"
