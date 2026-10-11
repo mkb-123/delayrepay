@@ -24,4 +24,3 @@ heat-map cell, and service detail.
    check contrast and keyboard navigation across dialogs and grid cells.
 8. **Recovery visibility** — display the last successful database backup and
    warn when the configured off-device backup destination is unavailable.
-
