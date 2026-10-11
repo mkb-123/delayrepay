@@ -195,7 +195,8 @@ Both commands choose the latest weekday and a ten-day lookback by default. Power
 For an always-on Raspberry Pi deployment with systemd services, weekday
 collection, daily Gmail claim reconciliation, daily SQLite backups, Saturday
 email, mDNS, and SQLite migration, follow
-[deploy/raspberry-pi/README.md](deploy/raspberry-pi/README.md).
+[deploy/raspberry-pi/README.md](deploy/raspberry-pi/README.md). The home-network
+dashboard address is `http://delayrepay.local`.
 
 ## Claims and rules
 

@@ -9,7 +9,7 @@ This setup targets Raspberry Pi OS or another Debian-based distribution with sys
 - `delayrepay-email.timer`: outstanding-claims email at 09:00 Saturday;
 - `delayrepay-reconcile.timer`: read-only Gmail claim reconciliation at 20:00 daily;
 - `delayrepay-backup.timer`: consistent SQLite backup at 02:30 daily, retaining 30;
-- Avahi/mDNS access at `http://<pi-hostname>.local:8765`;
+- Avahi/mDNS access at `http://delayrepay.local` through Nginx;
 - runtime SQLite and catalogue files in `/var/lib/delayrepay`, separate from Git.
 
 ## Migration
@@ -68,7 +68,8 @@ scope is read-only and does not change Gmail messages.
 
 On the first installation, the script copies the repository's existing SQLite database and catalogue into `/var/lib/delayrepay`. Later Git pulls do not overwrite live claim history.
 
-Open `http://delayrepay.local:8765` from a device on the same network.
+Open `http://delayrepay.local` from a device on the same network. Nginx listens
+on normal HTTP port 80 and forwards privately to the Python dashboard on 8765.
 
 ## Updating
 
