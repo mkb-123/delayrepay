@@ -14,7 +14,7 @@ if [[ ! -f "$repo_dir/.env" ]]; then
 fi
 
 sudo apt-get update
-sudo apt-get install -y python3-venv avahi-daemon sqlite3 nginx
+sudo apt-get install -y python3-venv avahi-daemon avahi-utils sqlite3 nginx
 python3 -m venv "$repo_dir/.venv"
 "$repo_dir/.venv/bin/pip" install --upgrade pip
 "$repo_dir/.venv/bin/pip" install -e "$repo_dir"
@@ -183,16 +183,40 @@ server {
     }
 }
 EOF
+
+sudo tee /usr/local/bin/delayrepay-avahi-alias >/dev/null <<'EOF'
+#!/bin/sh
+set -eu
+address="$(ip -4 route get 1.1.1.1 | awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}')"
+test -n "$address"
+exec /usr/bin/avahi-publish-address -R delayrepay.local "$address"
+EOF
+sudo chmod 755 /usr/local/bin/delayrepay-avahi-alias
+
+sudo tee /etc/systemd/system/delayrepay-avahi-alias.service >/dev/null <<'EOF'
+[Unit]
+Description=Publish delayrepay.local without changing the Pi hostname
+After=network-online.target avahi-daemon.service
+Requires=avahi-daemon.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/delayrepay-avahi-alias
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo ln -sfn /etc/nginx/sites-available/delayrepay /etc/nginx/sites-enabled/delayrepay
 sudo nginx -t
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now delayrepay.service delayrepay-collect.timer delayrepay-email.timer delayrepay-reconcile.timer delayrepay-backup.timer avahi-daemon.service nginx.service
+sudo systemctl enable --now delayrepay.service delayrepay-collect.timer delayrepay-email.timer delayrepay-reconcile.timer delayrepay-backup.timer delayrepay-avahi-alias.service avahi-daemon.service nginx.service
 sudo systemctl restart nginx.service
 
-hostname="$(hostname)"
 echo "Delay Repay installed."
-echo "Dashboard: http://${hostname}.local"
+echo "Dashboard: http://delayrepay.local"
 echo "Status: sudo systemctl status delayrepay.service"
 echo "Timers: systemctl list-timers 'delayrepay-*'"

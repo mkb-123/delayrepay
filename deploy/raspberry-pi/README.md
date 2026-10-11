@@ -24,14 +24,16 @@ nano .env
 ```
 
 Add the RTT credentials to `.env`. Add the Gmail app password only if the
-Saturday summary is required. The file is ignored by Git. To give the Pi a
-stable friendly address, set its hostname before installing:
+Saturday summary is required. The file is ignored by Git. Set the timezone,
+but keep the Pi's existing hostname so other services continue using their
+current `.local` address:
 
 ```bash
 sudo timedatectl set-timezone Europe/London
-sudo hostnamectl set-hostname delayrepay
-sudo reboot
 ```
+
+The installer publishes `delayrepay.local` as an additional mDNS alias. It
+does not rename the Pi or alter addresses used by Home Assistant or other apps.
 
 After reconnecting, install everything:
 
