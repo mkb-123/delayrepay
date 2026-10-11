@@ -87,9 +87,30 @@ class Database:
                 claimed_by_service_id TEXT NOT NULL REFERENCES services(service_id) ON DELETE CASCADE,
                 marked_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS claim_lifecycle (
+                service_id TEXT PRIMARY KEY REFERENCES services(service_id) ON DELETE CASCADE,
+                status TEXT NOT NULL,
+                status_at TEXT NOT NULL,
+                operator_code TEXT NOT NULL,
+                claim_reference TEXT,
+                explanation TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS claim_email_events (
+                gmail_message_id TEXT PRIMARY KEY,
+                service_id TEXT REFERENCES services(service_id) ON DELETE SET NULL,
+                operator_code TEXT NOT NULL,
+                claim_reference TEXT,
+                outcome TEXT NOT NULL,
+                received_at TEXT NOT NULL,
+                confidence TEXT NOT NULL,
+                explanation TEXT NOT NULL,
+                parser_version TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS claim_email_events_service_idx ON claim_email_events(service_id);
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         """)
-        self.connection.execute("PRAGMA user_version=1")
+        self.connection.execute("PRAGMA user_version=2")
         self.connection.commit()
 
     def _import_json_history(self, root: Path) -> None:
@@ -186,6 +207,62 @@ class Database:
                     INSERT INTO claims(service_id, claimed_at) VALUES(?, ?)
                     ON CONFLICT(service_id) DO UPDATE SET claimed_at=excluded.claimed_at
                 """, (service_id, claimed_at))
+
+    def claim_lifecycle(self, service_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT status, status_at, operator_code, claim_reference, explanation FROM claim_lifecycle WHERE service_id=?",
+            (service_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def save_claim_email_event(
+        self, *, gmail_message_id: str, service_id: str | None, operator_code: str,
+        claim_reference: str | None, outcome: str, received_at: str, confidence: str,
+        explanation: str, parser_version: str = "manual-agent-v1",
+    ) -> None:
+        allowed = {"SUBMITTED", "APPROVED", "REJECTED", "PAID", "NEEDS_REVIEW"}
+        if outcome not in allowed:
+            raise ValueError(f"Unsupported claim outcome: {outcome}")
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO claim_email_events(
+                    gmail_message_id, service_id, operator_code, claim_reference, outcome,
+                    received_at, confidence, explanation, parser_version
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(gmail_message_id) DO UPDATE SET
+                    service_id=excluded.service_id, operator_code=excluded.operator_code,
+                    claim_reference=excluded.claim_reference, outcome=excluded.outcome,
+                    received_at=excluded.received_at, confidence=excluded.confidence,
+                    explanation=excluded.explanation, parser_version=excluded.parser_version
+            """, (
+                gmail_message_id, service_id, operator_code, claim_reference, outcome,
+                received_at, confidence, explanation, parser_version,
+            ))
+            if service_id and confidence == "CERTAIN" and outcome != "NEEDS_REVIEW":
+                current = self.connection.execute(
+                    "SELECT status, status_at FROM claim_lifecycle WHERE service_id=?", (service_id,)
+                ).fetchone()
+                ranks = {"SUBMITTED": 1, "REJECTED": 2, "APPROVED": 3, "PAID": 4}
+                should_update = not current or received_at >= current["status_at"] or ranks[outcome] > ranks[current["status"]]
+                if should_update:
+                    self.connection.execute("""
+                        INSERT INTO claim_lifecycle(
+                            service_id, status, status_at, operator_code, claim_reference,
+                            explanation, updated_at
+                        ) VALUES(?, ?, ?, ?, ?, ?, datetime('now'))
+                        ON CONFLICT(service_id) DO UPDATE SET
+                            status=excluded.status, status_at=excluded.status_at,
+                            operator_code=excluded.operator_code,
+                            claim_reference=excluded.claim_reference,
+                            explanation=excluded.explanation, updated_at=excluded.updated_at
+                    """, (service_id, outcome, received_at, operator_code, claim_reference, explanation))
+
+    def set_last_gmail_reconciliation(self, reconciled_at: str) -> None:
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO metadata(key, value) VALUES('last_gmail_reconciliation', ?)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """, (reconciled_at,))
 
     def day_acknowledged_at(self, service_date: str) -> str | None:
         row = self.connection.execute(

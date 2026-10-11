@@ -238,6 +238,7 @@ def build_report_data(database: Database, service_date: str, action_only: bool, 
         evaluation = assess(
             service, services, database.claimed_at(service["serviceId"]),
             database.not_claimable_at(service["serviceId"]), database.superseded_by(service["serviceId"]),
+            database.claim_lifecycle(service["serviceId"]),
         )
         if persist:
             database.save_assessment(service["serviceId"], assessed_at, evaluation)
