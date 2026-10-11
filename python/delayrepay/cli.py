@@ -5,6 +5,7 @@ import json
 import logging
 import sys
 from datetime import date, timedelta
+from pathlib import Path
 
 from .config import data_dir, load_env
 from .ingestion.rtt import RttClient, RttError
@@ -130,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
 
             host = args.host or os.environ.get("DELAYREPAY_HOST", "127.0.0.1")
             port = args.port or int(os.environ.get("DELAYREPAY_PORT", "8765"))
-            log_dir = root.parent / "logs"
+            log_dir = Path(os.environ.get("DELAYREPAY_LOG_DIR", str(root / "logs")))
             log_dir.mkdir(parents=True, exist_ok=True)
             handler = RotatingFileHandler(log_dir / "server.log", maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
             handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))

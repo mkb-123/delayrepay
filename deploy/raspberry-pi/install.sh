@@ -20,7 +20,7 @@ python3 -m venv "$repo_dir/.venv"
 "$repo_dir/.venv/bin/pip" install -e "$repo_dir"
 
 sudo install -d -o "$run_user" -g "$run_group" "$data_dir"
-sudo install -d -m 700 -o "$run_user" -g "$run_group" "$data_dir/secrets" "$data_dir/backups"
+sudo install -d -m 700 -o "$run_user" -g "$run_group" "$data_dir/secrets" "$data_dir/backups" "$data_dir/logs"
 if [[ ! -f "$data_dir/delayrepay.sqlite" && -f "$repo_dir/data-store/delayrepay.sqlite" ]]; then
   sudo cp "$repo_dir/data-store/delayrepay.sqlite" "$data_dir/delayrepay.sqlite"
   sudo chown "$run_user:$run_group" "$data_dir/delayrepay.sqlite"
