@@ -163,6 +163,17 @@ class Database:
         ).fetchone()
         return json.loads(row["payload_json"]) if row else None
 
+    def services_between(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT payload_json FROM services WHERE service_date BETWEEN ? AND ? ORDER BY service_date, scheduled_departure",
+            (start_date, end_date),
+        ).fetchall()
+        return [json.loads(row["payload_json"]) for row in rows]
+
+    def metadata_value(self, key: str) -> str | None:
+        row = self.connection.execute("SELECT value FROM metadata WHERE key=?", (key,)).fetchone()
+        return row["value"] if row else None
+
     def stored_dates(self, start_date: str, end_date: str) -> list[str]:
         rows = self.connection.execute(
             "SELECT DISTINCT service_date FROM services WHERE service_date BETWEEN ? AND ? ORDER BY service_date", (start_date, end_date)
@@ -243,7 +254,15 @@ class Database:
                     "SELECT status, status_at FROM claim_lifecycle WHERE service_id=?", (service_id,)
                 ).fetchone()
                 ranks = {"SUBMITTED": 1, "REJECTED": 2, "APPROVED": 3, "PAID": 4}
-                should_update = not current or received_at >= current["status_at"] or ranks[outcome] > ranks[current["status"]]
+                should_update = not current
+                if current:
+                    current_status = current["status"]
+                    if current_status == "PAID" and outcome != "PAID":
+                        should_update = False
+                    elif outcome == "SUBMITTED" and current_status in {"APPROVED", "REJECTED", "PAID"}:
+                        should_update = False
+                    else:
+                        should_update = received_at >= current["status_at"] or ranks[outcome] > ranks[current_status]
                 if should_update:
                     self.connection.execute("""
                         INSERT INTO claim_lifecycle(

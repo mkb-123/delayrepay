@@ -9,26 +9,31 @@
 - Confirm the email omits acknowledged days and already claimed journeys.
 - Confirm the Windows task succeeds unattended and records a useful failure in its log.
 
-### 2. Migrate to the Raspberry Pi
+### 2. Complete the Raspberry Pi cutover
 
 - Set the Pi hostname to `delayrepay` and timezone to `Europe/London`.
 - Clone the repository and configure its ignored `.env`.
 - Run `deploy/raspberry-pi/install.sh`.
+- Authorize read-only Gmail OAuth on a browser-equipped computer and copy the
+  client/token files to `/var/lib/delayrepay/secrets`.
 - Verify `http://delayrepay.local:8765` from the phone.
 - Confirm the existing SQLite claim history was copied into `/var/lib/delayrepay`.
 - Manually run the collection and email systemd services once.
+- Manually run reconciliation and backup services once.
 - Confirm both timers survive a reboot and catch up after the Pi was powered off.
 
-### 3. Add automatic SQLite backups on the Pi
+### 3. Verify automatic SQLite backups on the Pi
 
-- Create backups without copying an actively changing SQLite file directly; use SQLite's backup API from Python.
-- Keep several dated local backups outside the repository.
-- Add a systemd backup timer and retention policy.
-- Document and test a restore procedure.
+- Confirm the daily backup timer creates valid files in
+  `/var/lib/delayrepay/backups` and retains 30 copies.
+- Test the documented restore procedure once.
 
 ### 4. Add versioned database migrations
 
-The current schema is created with `CREATE TABLE IF NOT EXISTS` and always reports `user_version=1`. Replace this with ordered migrations before more schema changes are added. Existing Windows and Pi databases must upgrade without losing services, claims, acknowledgements, or manual decisions.
+The current schema is created with `CREATE TABLE IF NOT EXISTS` and reports
+`user_version=2`. Replace this with ordered migrations before more schema
+changes are added. Existing Windows and Pi databases must upgrade without
+losing services, claims, acknowledgements, manual decisions, or email events.
 
 ### 5. Add the deferred automated tests
 

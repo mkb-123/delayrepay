@@ -46,6 +46,11 @@ def parser() -> argparse.ArgumentParser:
     daily = commands.add_parser("daily-brief", help="Collect and report the scheduled lookback window")
     daily.add_argument("--date", help="Window end date; defaults to the latest weekday")
     daily.add_argument("--lookback-days", type=int, default=10)
+    commands.add_parser("gmail-authorize", help="Authorize read-only Gmail claim reconciliation")
+    reconcile = commands.add_parser("gmail-reconcile", help="Reconcile operator claim emails")
+    reconcile.add_argument("--lookback-days", type=int, default=90)
+    backup = commands.add_parser("backup", help="Create a consistent SQLite backup")
+    backup.add_argument("--keep", type=int, default=30)
     return root
 
 
@@ -150,6 +155,16 @@ def main(argv: list[str] | None = None) -> int:
 
             result = run_daily_brief(root, date.fromisoformat(args.date) if args.date else None, args.lookback_days)
             print(json.dumps(result, indent=2))
+        elif args.command == "gmail-authorize":
+            from .gmail_reconcile import authorize
+            print(f"Gmail authorized. Token: {authorize()}")
+        elif args.command == "gmail-reconcile":
+            from .gmail_reconcile import reconcile
+            with Database(root) as database:
+                print(json.dumps(reconcile(database, args.lookback_days), indent=2))
+        elif args.command == "backup":
+            from .backup import backup_database
+            print(f"Backup: {backup_database(root, args.keep)}")
         return 0
     except (ValueError, RttError, CollectionBusyError) as error:
         print(f"Error: {error}", file=sys.stderr)

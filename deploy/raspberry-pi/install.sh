@@ -14,12 +14,13 @@ if [[ ! -f "$repo_dir/.env" ]]; then
 fi
 
 sudo apt-get update
-sudo apt-get install -y python3-venv avahi-daemon
+sudo apt-get install -y python3-venv avahi-daemon sqlite3
 python3 -m venv "$repo_dir/.venv"
 "$repo_dir/.venv/bin/pip" install --upgrade pip
 "$repo_dir/.venv/bin/pip" install -e "$repo_dir"
 
 sudo install -d -o "$run_user" -g "$run_group" "$data_dir"
+sudo install -d -m 700 -o "$run_user" -g "$run_group" "$data_dir/secrets" "$data_dir/backups"
 if [[ ! -f "$data_dir/delayrepay.sqlite" && -f "$repo_dir/data-store/delayrepay.sqlite" ]]; then
   sudo cp "$repo_dir/data-store/delayrepay.sqlite" "$data_dir/delayrepay.sqlite"
   sudo chown "$run_user:$run_group" "$data_dir/delayrepay.sqlite"
@@ -110,8 +111,64 @@ RandomizedDelaySec=2m
 WantedBy=timers.target
 EOF
 
+sudo tee /etc/systemd/system/delayrepay-reconcile.service >/dev/null <<EOF
+[Unit]
+Description=Reconcile Delay Repay claim emails from Gmail
+After=network-online.target delayrepay-collect.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=$run_user
+Group=$run_group
+WorkingDirectory=$repo_dir
+EnvironmentFile=$repo_dir/.env
+Environment=DELAYREPAY_REPO_DIR=$repo_dir
+ExecStart=$repo_dir/.venv/bin/python -m delayrepay gmail-reconcile
+EOF
+
+sudo tee /etc/systemd/system/delayrepay-reconcile.timer >/dev/null <<'EOF'
+[Unit]
+Description=Daily Delay Repay Gmail reconciliation
+
+[Timer]
+OnCalendar=*-*-* 20:00
+Persistent=true
+RandomizedDelaySec=2m
+
+[Install]
+WantedBy=timers.target
+EOF
+
+sudo tee /etc/systemd/system/delayrepay-backup.service >/dev/null <<EOF
+[Unit]
+Description=Back up the Delay Repay SQLite database
+
+[Service]
+Type=oneshot
+User=$run_user
+Group=$run_group
+WorkingDirectory=$repo_dir
+EnvironmentFile=$repo_dir/.env
+Environment=DELAYREPAY_REPO_DIR=$repo_dir
+ExecStart=$repo_dir/.venv/bin/python -m delayrepay backup --keep 30
+EOF
+
+sudo tee /etc/systemd/system/delayrepay-backup.timer >/dev/null <<'EOF'
+[Unit]
+Description=Daily Delay Repay database backup
+
+[Timer]
+OnCalendar=*-*-* 02:30
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target
+EOF
+
 sudo systemctl daemon-reload
-sudo systemctl enable --now delayrepay.service delayrepay-collect.timer delayrepay-email.timer avahi-daemon.service
+sudo systemctl enable --now delayrepay.service delayrepay-collect.timer delayrepay-email.timer delayrepay-reconcile.timer delayrepay-backup.timer avahi-daemon.service
 
 hostname="$(hostname)"
 echo "Delay Repay installed."
