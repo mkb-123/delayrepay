@@ -7,6 +7,14 @@ function clock(value) { return value ? value.slice(11, 16) : "—"; }
 function dayLabel(value) { return new Intl.DateTimeFormat("en-GB", {weekday: "short", day: "numeric", month: "short"}).format(new Date(`${value}T12:00:00`)); }
 function esc(value) { const span = document.createElement("span"); span.textContent = String(value ?? ""); return span.innerHTML; }
 function dateRange(days) { const end = new Date(); const start = new Date(end); start.setDate(end.getDate() - days + 1); return [isoDate(start.toISOString()), isoDate(end.toISOString())]; }
+const lifecycleLabels = {SUBMITTED: "Submitted", APPROVED: "Approved", REJECTED: "Rejected", PAID: "Paid", NEEDS_REVIEW: "Email review"};
+const lifecycleCompact = {SUBMITTED: "Sent", APPROVED: "OK", REJECTED: "No", PAID: "Paid", NEEDS_REVIEW: "?"};
+function lifecycleBadge(lifecycle, compact = false) {
+  if (!lifecycle) return "";
+  const label = (compact ? lifecycleCompact : lifecycleLabels)[lifecycle.status] || lifecycle.status;
+  const detail = lifecycle.claim_reference ? `${label} · ${lifecycle.claim_reference}` : label;
+  return `<span class="claim-lifecycle lifecycle-${esc(lifecycle.status)}" title="${esc(detail)}">${esc(compact ? label : detail)}</span>`;
+}
 
 async function load() {
   const period = $("period").value;
@@ -40,7 +48,7 @@ function renderRecommendations() {
       const label = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "✓ Claimed" : "Decide";
       const detail = item.effectiveDelayMinutes == null ? label : `${item.effectiveDelayMinutes} min · ${label}`;
       const preference = item.preferredClaimedTime ? " · claimed time" : "";
-      html += `<button class="recommend-row ${item.status}" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span></button>`;
+      html += `<button class="recommend-row ${item.status}" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span>${lifecycleBadge(item.claimLifecycle)}</button>`;
     }
     html += "</div></article>";
   }
@@ -103,7 +111,8 @@ function cell(service, threshold) {
   const value = service.cancelled ? "×" : service.rawDelayMinutes == null ? "?" : service.rawDelayMinutes <= 0 ? "✓" : `+${service.rawDelayMinutes}`;
   const marker = a.status === "POTENTIAL" ? "!" : a.status === "CLAIMED" ? "✓" : a.status === "NEEDS_REVIEW" ? "?" : "";
   const claimed = a.status === "CLAIMED" ? " heat-claimed" : "";
-  return `<td><button class="heat-cell ${heat}${claimed}" onclick="showService('${encodeURIComponent(service.serviceId)}')"><strong>${value}</strong>${marker ? `<span>${marker}</span>` : ""}</button></td>`;
+  const lifecycle = lifecycleBadge(a.claimLifecycle, true);
+  return `<td><button class="heat-cell ${heat}${claimed}" onclick="showService('${encodeURIComponent(service.serviceId)}')"><strong>${value}</strong>${lifecycle || (marker ? `<span class="heat-marker">${marker}</span>` : "")}</button></td>`;
 }
 
 function showService(encodedId) {
@@ -119,7 +128,7 @@ function showService(encodedId) {
   if (a.notClaimableAt) actions += `<button class="secondary" onclick="notClaimable('${encodedId}', true)">Undo not claimable</button>`;
   if (a.claimUrl && ["POTENTIAL", "NEEDS_REVIEW", "CLAIMED"].includes(a.status)) actions += `<a href="${esc(a.claimUrl)}" target="_blank" rel="noopener">Open claim page →</a>`;
   const lifecycle = a.claimLifecycle;
-  const lifecycleFacts = lifecycle ? `<dt>Operator claim</dt><dd><strong>${esc(lifecycle.status)}</strong>${lifecycle.claim_reference ? ` · ${esc(lifecycle.claim_reference)}` : ""}<br>${esc(lifecycle.explanation)}</dd>` : "";
+  const lifecycleFacts = lifecycle ? `<dt>Operator claim</dt><dd>${lifecycleBadge(lifecycle)}<br>${esc(lifecycle.explanation)}</dd>` : "";
   $("serviceDetail").innerHTML = `<p class="eyebrow">${esc(dayLabel(service.serviceDate))} · ${service.origin} → ${service.destination}</p><h2>${clock(service.scheduledDeparture)} · ${esc(service.operatorName)}</h2><span class="status ${a.status}">${labels[a.status]}</span><p class="reason">${esc(a.explanation)}</p><dl class="facts"><dt>Scheduled</dt><dd>${clock(service.scheduledDeparture)} → ${clock(service.scheduledArrival)}</dd><dt>Actual</dt><dd>${clock(service.actualDeparture)} → ${clock(service.actualArrival)}</dd><dt>Raw delay</dt><dd>${service.cancelled ? "Cancelled" : service.rawDelayMinutes == null ? "Unknown" : `${service.rawDelayMinutes} minutes`}</dd><dt>Effective delay</dt><dd>${a.effectiveDelayMinutes == null ? "Not determined" : `${a.effectiveDelayMinutes} minutes`}</dd>${lifecycleFacts}<dt>Rule</dt><dd>${esc(a.ruleVersion)}</dd></dl><div class="actions">${actions}</div>${a.ruleSource ? `<p><a href="${esc(a.ruleSource)}" target="_blank" rel="noopener">Official rule source →</a></p>` : ""}`;
   $("serviceDialog").showModal();
 }

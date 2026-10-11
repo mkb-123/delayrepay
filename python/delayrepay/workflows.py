@@ -320,6 +320,7 @@ def build_recommendations(
                 "delayBand": _delay_band(delay)[1], "preferredClaimedTime": preferred_time,
                 "explanation": "Highest delay band; preferred a train time claimed before." if preferred_time else "Highest delay band; longest delay used as the tie-breaker.",
                 "claimUrl": evaluation.get("claimUrl"), "claimedAt": claimed_at,
+                "claimLifecycle": evaluation.get("claimLifecycle"),
             })
             continue
         review = [row for row in rows if row["assessment"]["status"] == "NEEDS_REVIEW" or row.get("cancelled")]
@@ -332,6 +333,7 @@ def build_recommendations(
                 "effectiveDelayMinutes": selected[1].get("effectiveDelayMinutes") if selected else None,
                 "explanation": "Collection is incomplete; review this disruption before claiming." if not report_data.get("sourceComplete", False) else row["assessment"]["explanation"],
                 "claimUrl": row["assessment"].get("claimUrl"), "claimedAt": row["assessment"].get("claimedAt"),
+                "claimLifecycle": row["assessment"].get("claimLifecycle"),
             })
         else:
             recommendations.append({"direction": direction, "status": "NO_CLAIM", "explanation": "No confidently claimable disruption."})
