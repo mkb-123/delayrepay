@@ -16,7 +16,7 @@ if [[ ! -f "$repo_dir/.env" ]]; then
 fi
 
 sudo apt-get update
-sudo apt-get install -y python3-venv avahi-daemon avahi-utils sqlite3 nginx
+sudo apt-get install -y python3-venv avahi-daemon avahi-utils ca-certificates curl sqlite3 nginx
 python3 -m venv "$repo_dir/.venv"
 "$repo_dir/.venv/bin/pip" install --upgrade pip
 "$repo_dir/.venv/bin/pip" install -e "$repo_dir"
