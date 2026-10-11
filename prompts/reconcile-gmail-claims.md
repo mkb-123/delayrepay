@@ -16,6 +16,8 @@ otherwise modify any email.
    Northwestern Railway/West Midlands Trains. Use operator names, Delay Repay
    wording, claim references, and known senders. Do not assume that an unknown
    sender is genuine merely because it mentions a claim.
+   Do not limit the search to journeys already marked as claimed: compare every
+   relevant message with every stored monitored service in the search period.
 3. Fetch only the headers, dates, snippets, and minimum body text required to
    establish the journey and outcome. Do not download attachments unless they
    are essential to resolve a clear match.
@@ -94,4 +96,6 @@ Report only:
 - number of relevant emails checked;
 - journeys moved to Submitted, Approved, Rejected, or Paid;
 - ambiguous items requiring review;
+- claim emails intentionally excluded because their journeys fall outside the
+  stored dates or monitoring windows;
 - whether the database was committed and pushed.
