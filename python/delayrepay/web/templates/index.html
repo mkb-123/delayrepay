@@ -18,6 +18,7 @@
       <div><strong id="claimedCount">—</strong><span>Claimed</span></div>
       <p id="rangeLabel">Loading…</p>
     </section>
+    <section id="systemHealth" class="system-health" aria-live="polite"></section>
 
     <details class="filter-panel">
       <summary><span>Filters</span><strong id="filterSummary">15+ min or cancelled</strong></summary>
@@ -30,12 +31,15 @@
         <label>Direction <select id="direction"><option value="">All</option><option>MORNING</option><option>EVENING</option></select></label>
         <label>Operator <select id="operator"><option value="">All</option></select></label>
         <label>Status <select id="status"><option value="">All</option><option value="POTENTIAL">Potential</option><option value="NEEDS_REVIEW">Decide</option><option value="CLAIMED">Claimed</option><option value="NO_CLAIM">No claim</option></select></label>
+        <label>Claim outcome <select id="lifecycle"><option value="">All</option><option value="NONE">No email match</option><option value="SUBMITTED">Submitted</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option><option value="PAID">Paid</option></select></label>
+        <label>Claim reference <input id="reference" type="search" placeholder="Search reference"></label>
         <label>Delay <select id="delay"><option value="">All trains</option><option value="15" selected>15+ / cancelled</option><option value="30">30+ / cancelled</option><option value="60">60+ / cancelled</option></select></label>
       </section>
       <p class="incomplete"><span id="incompleteCount">—</span> incomplete collection days</p>
     </details>
 
     <div id="notice" class="notice" hidden></div>
+    <section id="claimPipeline" class="claim-pipeline"></section>
     <section class="recommendations">
       <div class="section-heading"><h2>What to claim</h2><label class="show-acknowledged"><input type="checkbox" id="showAcknowledged"> Show acknowledged</label></div>
       <p class="recommend-note">Assumes the highlighted service is the train you travelled on.</p>
@@ -45,6 +49,7 @@
   </main>
 
   <dialog id="serviceDialog" class="service-dialog"><button class="dialog-close secondary" onclick="this.closest('dialog').close()">Close</button><div id="serviceDetail"></div></dialog>
+  <dialog id="emailReviewDialog" class="email-review-dialog"><button class="dialog-close secondary" onclick="this.closest('dialog').close()">Close</button><h2>Match claim emails</h2><p>Choose a journey only when the operator email clearly belongs to it.</p><div id="emailReview"></div></dialog>
 
   <dialog id="dataDialog" class="data-dialog">
     <button class="dialog-close secondary" onclick="this.closest('dialog').close()">Close</button>

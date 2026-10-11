@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import logging
+import os
 from pathlib import Path
 import threading
 import uuid
@@ -121,16 +122,39 @@ def create_app(root: Path | str | None = None) -> Flask:
         with Database(data_root) as database:
             for service_date in reversed(database.stored_dates(start.isoformat(), end.isoformat())):
                 reports.append(build_report_data(database, service_date, False, persist=False))
+            email_review = database.claim_email_events_needing_review()
+            last_reconciliation = database.metadata_value("last_gmail_reconciliation")
         totals = {"potentialClaims": 0, "needsReview": 0, "claimed": 0, "noClaim": 0, "incompleteDays": 0}
         for report in reports:
             for key in ("potentialClaims", "needsReview", "claimed", "noClaim"):
                 totals[key] += report["summary"][key]
             totals["incompleteDays"] += int(not report["sourceComplete"])
-        return jsonify({"from": start.isoformat(), "to": end.isoformat(), "summary": totals, "days": reports})
+        backups = sorted((data_root / "backups").glob("delayrepay-*.sqlite"), reverse=True)
+        mirror_value = os.environ.get("DELAYREPAY_BACKUP_MIRROR_DIR", "").strip()
+        token_value = os.environ.get("GMAIL_OAUTH_TOKEN_FILE", "").strip()
+        operations = {
+            "lastGmailReconciliation": last_reconciliation,
+            "gmailConfigured": bool(token_value and Path(token_value).is_file()),
+            "emailReview": email_review,
+            "lastBackup": datetime.fromtimestamp(backups[0].stat().st_mtime, timezone.utc).isoformat() if backups else None,
+            "backupMirrorConfigured": bool(mirror_value),
+            "backupMirrorAvailable": bool(mirror_value and Path(mirror_value).is_dir()),
+        }
+        return jsonify({"from": start.isoformat(), "to": end.isoformat(), "summary": totals, "days": reports, "operations": operations})
 
     @app.get("/api/export.json")
     def export_json():
         return dashboard()
+
+    @app.post("/api/email-events/<path:gmail_message_id>/match")
+    def match_email_event(gmail_message_id: str):
+        _require_same_origin()
+        service_id = (request.get_json() or {}).get("serviceId", "")
+        if not service_id:
+            raise ValueError("serviceId is required")
+        with Database(data_root) as database:
+            database.match_claim_email_event(gmail_message_id, service_id)
+        return jsonify({"status": "MATCHED"})
 
     @app.get("/api/refresh-plan")
     def get_refresh_plan():

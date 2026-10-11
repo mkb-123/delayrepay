@@ -226,6 +226,50 @@ class Database:
         ).fetchone()
         return dict(row) if row else None
 
+    def claim_email_events_needing_review(self) -> list[dict[str, Any]]:
+        rows = self.connection.execute("""
+            SELECT gmail_message_id, service_id, operator_code, claim_reference,
+                   outcome, received_at, confidence, explanation
+            FROM claim_email_events
+            WHERE service_id IS NULL OR confidence != 'CERTAIN'
+            ORDER BY received_at DESC
+        """).fetchall()
+        return [dict(row) for row in rows]
+
+    def match_claim_email_event(self, gmail_message_id: str, service_id: str) -> None:
+        event = self.connection.execute(
+            "SELECT * FROM claim_email_events WHERE gmail_message_id=?", (gmail_message_id,)
+        ).fetchone()
+        service = self.connection.execute(
+            "SELECT operator_code FROM services WHERE service_id=?", (service_id,)
+        ).fetchone()
+        if not event:
+            raise ValueError("Email event not found.")
+        if not service:
+            raise ValueError("Journey not found.")
+        if service["operator_code"] != event["operator_code"]:
+            raise ValueError("The email operator does not match the selected journey.")
+        self.save_claim_email_event(
+            gmail_message_id=gmail_message_id, service_id=service_id,
+            operator_code=event["operator_code"], claim_reference=event["claim_reference"],
+            outcome=event["outcome"], received_at=event["received_at"], confidence="CERTAIN",
+            explanation=event["explanation"], parser_version=event["parser_version"],
+        )
+        if event["outcome"] == "NEEDS_REVIEW":
+            with self.connection:
+                self.connection.execute("""
+                    INSERT INTO claim_lifecycle(
+                        service_id, status, status_at, operator_code, claim_reference,
+                        explanation, updated_at
+                    ) VALUES(?, 'NEEDS_REVIEW', ?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(service_id) DO UPDATE SET
+                        status=excluded.status, status_at=excluded.status_at,
+                        operator_code=excluded.operator_code,
+                        claim_reference=excluded.claim_reference,
+                        explanation=excluded.explanation, updated_at=excluded.updated_at
+                """, (service_id, event["received_at"], event["operator_code"],
+                      event["claim_reference"], event["explanation"]))
+
     def save_claim_email_event(
         self, *, gmail_message_id: str, service_id: str | None, operator_code: str,
         claim_reference: str | None, outcome: str, received_at: str, confidence: str,

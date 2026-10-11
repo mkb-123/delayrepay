@@ -16,6 +16,10 @@ button:disabled { opacity: .5; cursor: wait; }
 .hero strong { font-size: 1.4rem; }
 .hero span { color: #d2e6df; font-size: .75rem; font-weight: 700; }
 .hero p { color: #bdd6cd; font-size: .72rem; margin-left: auto; }
+.system-health { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.system-health span, .health-review { border-radius: 999px; padding: 5px 8px; font-size: .65rem; font-weight: 750; }
+.health-ok { color: #155e45; background: #d1fae5; }.health-warn { color: #854d0e; background: #fef3c7; }
+.health-review { background: #174b78; }
 
 .filter-panel { background: white; border: 1px solid #dfe4e1; border-radius: 10px; margin: 9px 0 12px; font-size: .8rem; }
 .filter-panel > summary { display: flex; justify-content: space-between; padding: 10px 12px; cursor: pointer; }
@@ -26,6 +30,12 @@ select, input { width: 100%; display: block; margin-top: 3px; border: 1px solid 
 .incomplete { color: #6a746f; padding: 0 12px 10px; font-size: .7rem; }
 
 .recommendations { margin: 16px 0 20px; }
+.claim-pipeline { margin: 15px 0 20px; }
+.pipeline-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.pipeline-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; color: #26312c; background: white; border: 1px solid #dce2de; text-align: left; }
+.pipeline-card > span:not(.claim-lifecycle) { color: #68736d; font-size: .68rem; }
+.completed-claims { margin-top: 8px; }.completed-claims summary { color: #68736d; cursor: pointer; font-size: .72rem; padding: 5px 0; }
+.empty.compact { padding: 12px; }
 .section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 2px 7px; }
 .section-heading h2 { font-size: 1rem; }
 .section-heading span { color: #737d78; font-size: .66rem; text-align: right; }
@@ -51,6 +61,7 @@ select, input { width: 100%; display: block; margin-top: 3px; border: 1px solid 
 .grid-section h2 { font-size: 1rem; margin: 0 0 6px 2px; }
 .grid-section h2 span { color: #68736d; font-size: .74rem; font-weight: 650; margin-left: 5px; }
 .grid-scroll { overflow-x: auto; border: 1px solid #dce2de; border-radius: 10px; background: white; }
+.mobile-journeys { display: none; }
 .heat-grid { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 560px; table-layout: fixed; }
 .heat-grid th, .heat-grid td { border-right: 1px solid #e4e8e5; border-bottom: 1px solid #e4e8e5; padding: 0; text-align: center; height: 49px; }
 .heat-grid tr:last-child th, .heat-grid tr:last-child td { border-bottom: 0; }
@@ -97,6 +108,10 @@ dialog::backdrop { background: #10251eaa; }
 .facts dt { color: #6b746f; }.facts dd { margin: 0; }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
 .actions a, .service-dialog > div > p a { padding: 7px; color: #176b55; font-weight: 750; text-decoration: none; }
+.copy-reference { padding: 3px 6px; margin-left: 4px; font-size: .62rem; }
+.email-review-dialog > p { color: #68736d; font-size: .74rem; margin: 5px 0 12px; }
+.email-event { border-top: 1px solid #dce2de; padding: 12px 0; }.email-event > strong, .email-event > span { display: block; }
+.email-event > span, .email-event > p { color: #68736d; font-size: .7rem; margin: 3px 0 8px; }.email-event button { margin-top: 7px; }
 #refreshPlan { margin: 14px 0; line-height: 1.45; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .data-dialog { width: min(620px, calc(100% - 24px)); }
@@ -116,8 +131,12 @@ dialog::backdrop { background: #10251eaa; }
   .section-heading span { text-align: left; }
   .recommend-day { grid-template-columns: 68px 1fr; }
   .recommend-day > div { grid-template-columns: 1fr; }
+  .pipeline-grid { grid-template-columns: 1fr; }
   .operation-fields { grid-template-columns: 1fr 70px; }
   .operation-fields label:last-child { grid-column: 1 / -1; }
-  .heat-grid { min-width: 510px; }
-  .heat-grid th:first-child { width: 126px; }
+  .grid-scroll { display: none; }
+  .mobile-journeys { display: grid; gap: 6px; }
+  .mobile-journey { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; color: #26312c; background: white; border: 1px solid #dce2de; text-align: left; }
+  .mobile-journey > span:not(.claim-lifecycle) { color: #68736d; font-size: .68rem; }
+  .mobile-journey .claim-lifecycle { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 }

@@ -7,6 +7,7 @@ function clock(value) { return value ? value.slice(11, 16) : "—"; }
 function dayLabel(value) { return new Intl.DateTimeFormat("en-GB", {weekday: "short", day: "numeric", month: "short"}).format(new Date(`${value}T12:00:00`)); }
 function esc(value) { const span = document.createElement("span"); span.textContent = String(value ?? ""); return span.innerHTML; }
 function dateRange(days) { const end = new Date(); const start = new Date(end); start.setDate(end.getDate() - days + 1); return [isoDate(start.toISOString()), isoDate(end.toISOString())]; }
+function timestamp(value) { return value ? new Intl.DateTimeFormat("en-GB", {dateStyle: "medium", timeStyle: "short"}).format(new Date(value)) : "Never"; }
 const lifecycleLabels = {SUBMITTED: "Submitted", APPROVED: "Approved", REJECTED: "Rejected", PAID: "Paid", NEEDS_REVIEW: "Email review"};
 const lifecycleCompact = {SUBMITTED: "Sent", APPROVED: "OK", REJECTED: "No", PAID: "Paid", NEEDS_REVIEW: "?"};
 function lifecycleBadge(lifecycle, compact = false) {
@@ -29,8 +30,48 @@ async function load() {
   const operators = new Set(data.days.flatMap(day => day.services.map(service => service.operatorName)));
   const selected = $("operator").value;
   $("operator").innerHTML = '<option value="">All</option>' + [...operators].sort().map(value => `<option ${value === selected ? "selected" : ""}>${esc(value)}</option>`).join("");
+  renderHealth();
+  renderClaimPipeline();
   renderRecommendations();
   render();
+}
+
+function renderHealth() {
+  const value = data.operations || {};
+  const gmail = value.gmailConfigured ? `Gmail checked ${timestamp(value.lastGmailReconciliation)}` : "Gmail authorization needed";
+  const backup = value.lastBackup ? `Backup ${timestamp(value.lastBackup)}` : "No backup found";
+  const mirror = !value.backupMirrorConfigured ? "Off-device backup not configured" : value.backupMirrorAvailable ? "Off-device backup available" : "Off-device backup unavailable";
+  const review = value.emailReview?.length || 0;
+  $("systemHealth").innerHTML = `<span class="${value.gmailConfigured ? "health-ok" : "health-warn"}">${esc(gmail)}</span><span class="${value.lastBackup ? "health-ok" : "health-warn"}">${esc(backup)}</span><span class="${value.backupMirrorAvailable ? "health-ok" : "health-warn"}">${esc(mirror)}</span>${review ? `<button class="health-review" onclick="openEmailReview()">${review} email${review === 1 ? "" : "s"} to match</button>` : ""}`;
+}
+
+function renderClaimPipeline() {
+  const services = data.days.flatMap(day => day.services).filter(service => service.assessment.claimLifecycle);
+  const active = services.filter(service => ["SUBMITTED", "APPROVED", "NEEDS_REVIEW"].includes(service.assessment.claimLifecycle.status));
+  const complete = services.filter(service => ["PAID", "REJECTED"].includes(service.assessment.claimLifecycle.status));
+  const cards = rows => rows.map(service => `<button class="pipeline-card" onclick="showService('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)}</span>${lifecycleBadge(service.assessment.claimLifecycle)}</button>`).join("");
+  $("claimPipeline").innerHTML = `<div class="section-heading"><h2>Claims in progress</h2></div>${active.length ? `<div class="pipeline-grid">${cards(active)}</div>` : '<p class="empty compact">No claims awaiting an outcome.</p>'}${complete.length ? `<details class="completed-claims"><summary>${complete.length} completed claim${complete.length === 1 ? "" : "s"}</summary><div class="pipeline-grid">${cards(complete)}</div></details>` : ""}`;
+}
+
+function openEmailReview() {
+  const events = data.operations?.emailReview || [];
+  const services = data.days.flatMap(day => day.services);
+  $("emailReview").innerHTML = events.map((event, index) => {
+    const candidates = services.filter(service => service.operatorCode === event.operator_code);
+    return `<article class="email-event"><strong>${esc(lifecycleLabels[event.outcome] || event.outcome)} · ${esc(event.operator_code)}</strong><span>${timestamp(event.received_at)}${event.claim_reference ? ` · ${esc(event.claim_reference)}` : ""}</span><p>${esc(event.explanation)}</p><label>Journey<select id="emailMatch${index}"><option value="">Select journey</option>${candidates.map(service => `<option value="${esc(service.serviceId)}">${esc(dayLabel(service.serviceDate))} · ${clock(service.scheduledDeparture)} · ${esc(service.operatorName)}</option>`).join("")}</select></label><button onclick="matchEmail('${encodeURIComponent(event.gmail_message_id)}', 'emailMatch${index}')">Match email</button></article>`;
+  }).join("") || '<p class="empty">No emails need matching.</p>';
+  $("emailReviewDialog").showModal();
+}
+
+async function matchEmail(encodedId, selectId) {
+  const serviceId = $(selectId).value;
+  if (!serviceId) return showNotice("Choose a journey first.", true);
+  const response = await fetch(`/api/email-events/${encodedId}/match`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({serviceId})});
+  const result = await response.json();
+  if (!response.ok) return showNotice(result.error, true);
+  $("emailReviewDialog").close();
+  showNotice("Email matched to journey.");
+  await load();
 }
 
 function renderRecommendations() {
@@ -69,15 +110,20 @@ function render() {
   $("incompleteCount").textContent = data.summary.incompleteDays;
   $("rangeLabel").textContent = `${data.from} to ${data.to}`;
   const direction = $("direction").value, operator = $("operator").value, status = $("status").value;
+  const lifecycle = $("lifecycle").value, reference = $("reference").value.trim().toLowerCase();
   const delay = $("delay").value === "" ? null : Number($("delay").value);
   const parts = [delay === null ? "All trains" : `${delay}+ min or cancelled`];
   if (direction) parts.push(direction === "MORNING" ? "Morning" : "Evening");
   if (operator) parts.push(operator);
   if (status) parts.push({POTENTIAL: "Potential", NEEDS_REVIEW: "Decide", CLAIMED: "Claimed", NO_CLAIM: "No claim"}[status]);
+  if (lifecycle) parts.push(lifecycle === "NONE" ? "No email match" : lifecycleLabels[lifecycle]);
+  if (reference) parts.push(`Reference: ${reference}`);
   $("filterSummary").textContent = parts.join(" · ");
   const dates = [...data.days].reverse().map(day => day.date);
   const all = data.days.flatMap(day => day.services).filter(s =>
-    (!direction || s.direction === direction) && (!operator || s.operatorName === operator) && (!status || s.assessment.status === status)
+    (!direction || s.direction === direction) && (!operator || s.operatorName === operator) && (!status || s.assessment.status === status) &&
+    (!lifecycle || (lifecycle === "NONE" ? !s.assessment.claimLifecycle : s.assessment.claimLifecycle?.status === lifecycle)) &&
+    (!reference || (s.assessment.claimLifecycle?.claim_reference || "").toLowerCase().includes(reference))
   );
   let html = "";
   for (const routeDirection of ["MORNING", "EVENING"]) {
@@ -97,9 +143,16 @@ function render() {
     for (const row of rows) {
       html += `<tr><th><strong>${row.label}</strong><span>${esc(row.operator)}</span></th>${dates.map(value => cell(row.cells.get(value), delay)).join("")}</tr>`;
     }
-    html += "</tbody></table></div></section>";
+    const mobileRows = routeServices.filter(service => delay === null || service.cancelled || (service.rawDelayMinutes != null && service.rawDelayMinutes >= delay)).map(service => mobileCard(service)).join("");
+    html += `</tbody></table></div><div class="mobile-journeys">${mobileRows}</div></section>`;
   }
   $("results").innerHTML = html || '<p class="empty">No stored services match these filters.</p>';
+}
+
+function mobileCard(service) {
+  const a = service.assessment;
+  const delay = service.cancelled ? "Cancelled" : service.rawDelayMinutes == null ? "Unknown delay" : `${service.rawDelayMinutes > 0 ? "+" : ""}${service.rawDelayMinutes} min`;
+  return `<button class="mobile-journey" onclick="showService('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)} · ${delay}</span>${lifecycleBadge(a.claimLifecycle)}</button>`;
 }
 
 function cell(service, threshold) {
@@ -128,9 +181,14 @@ function showService(encodedId) {
   if (a.notClaimableAt) actions += `<button class="secondary" onclick="notClaimable('${encodedId}', true)">Undo not claimable</button>`;
   if (a.claimUrl && ["POTENTIAL", "NEEDS_REVIEW", "CLAIMED"].includes(a.status)) actions += `<a href="${esc(a.claimUrl)}" target="_blank" rel="noopener">Open claim page →</a>`;
   const lifecycle = a.claimLifecycle;
-  const lifecycleFacts = lifecycle ? `<dt>Operator claim</dt><dd>${lifecycleBadge(lifecycle)}<br>${esc(lifecycle.explanation)}</dd>` : "";
+  const lifecycleFacts = lifecycle ? `<dt>Operator claim</dt><dd>${lifecycleBadge(lifecycle)}${lifecycle.claim_reference ? ` <button class="copy-reference secondary" onclick="copyReference(decodeURIComponent('${encodeURIComponent(lifecycle.claim_reference)}'))">Copy reference</button>` : ""}<br>${esc(lifecycle.explanation)}</dd>` : "";
   $("serviceDetail").innerHTML = `<p class="eyebrow">${esc(dayLabel(service.serviceDate))} · ${service.origin} → ${service.destination}</p><h2>${clock(service.scheduledDeparture)} · ${esc(service.operatorName)}</h2><span class="status ${a.status}">${labels[a.status]}</span><p class="reason">${esc(a.explanation)}</p><dl class="facts"><dt>Scheduled</dt><dd>${clock(service.scheduledDeparture)} → ${clock(service.scheduledArrival)}</dd><dt>Actual</dt><dd>${clock(service.actualDeparture)} → ${clock(service.actualArrival)}</dd><dt>Raw delay</dt><dd>${service.cancelled ? "Cancelled" : service.rawDelayMinutes == null ? "Unknown" : `${service.rawDelayMinutes} minutes`}</dd><dt>Effective delay</dt><dd>${a.effectiveDelayMinutes == null ? "Not determined" : `${a.effectiveDelayMinutes} minutes`}</dd>${lifecycleFacts}<dt>Rule</dt><dd>${esc(a.ruleVersion)}</dd></dl><div class="actions">${actions}</div>${a.ruleSource ? `<p><a href="${esc(a.ruleSource)}" target="_blank" rel="noopener">Official rule source →</a></p>` : ""}`;
   $("serviceDialog").showModal();
+}
+
+async function copyReference(value) {
+  await navigator.clipboard.writeText(value);
+  showNotice("Claim reference copied.");
 }
 
 async function claim(encodedId, undo) {
@@ -208,7 +266,8 @@ async function pollJob(id) {
 
 $("period").addEventListener("change", () => { const custom = $("period").value === "custom"; $("fromWrap").hidden = !custom; $("toWrap").hidden = !custom; if (!custom) load(); });
 for (const id of ["fromDate", "toDate"]) $(id).addEventListener("change", load);
-for (const id of ["direction", "operator", "status", "delay"]) $(id).addEventListener("change", render);
+for (const id of ["direction", "operator", "status", "lifecycle", "delay"]) $(id).addEventListener("change", render);
+$("reference").addEventListener("input", render);
 $("showAcknowledged").addEventListener("change", renderRecommendations);
 $("refreshButton").addEventListener("click", openData);
 $("planDiscovery").addEventListener("click", () => previewOperation("discover"));
