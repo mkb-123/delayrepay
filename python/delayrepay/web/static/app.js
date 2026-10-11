@@ -47,11 +47,22 @@ function renderHealth() {
 }
 
 function renderClaimPipeline() {
-  const services = data.days.flatMap(day => day.services).filter(service => service.assessment.claimLifecycle);
-  const active = services.filter(service => ["SUBMITTED", "APPROVED", "NEEDS_REVIEW"].includes(service.assessment.claimLifecycle.status));
-  const complete = services.filter(service => ["PAID", "REJECTED"].includes(service.assessment.claimLifecycle.status));
-  const cards = rows => rows.map(service => `<button class="pipeline-card" onclick="showService('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)}</span>${lifecycleBadge(service.assessment.claimLifecycle)}</button>`).join("");
+  const services = data.operations?.claimTracking || [];
+  const active = services.filter(service => !service.claimLifecycle || ["SUBMITTED", "APPROVED", "NEEDS_REVIEW"].includes(service.claimLifecycle.status));
+  const complete = services.filter(service => ["PAID", "REJECTED"].includes(service.claimLifecycle?.status));
+  const badge = service => lifecycleBadge(service.claimLifecycle) || '<span class="claim-lifecycle lifecycle-SUBMITTED">Marked claimed</span>';
+  const cards = rows => rows.map(service => `<button class="pipeline-card" onclick="showTrackedClaim('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)}</span>${badge(service)}</button>`).join("");
   $("claimPipeline").innerHTML = `<div class="section-heading"><h2>Claims in progress</h2></div>${active.length ? `<div class="pipeline-grid">${cards(active)}</div>` : '<p class="empty compact">No claims awaiting an outcome.</p>'}${complete.length ? `<details class="completed-claims"><summary>${complete.length} completed claim${complete.length === 1 ? "" : "s"}</summary><div class="pipeline-grid">${cards(complete)}</div></details>` : ""}`;
+}
+
+async function showTrackedClaim(encodedId) {
+  const id = decodeURIComponent(encodedId);
+  const loaded = data.days.flatMap(day => day.services).some(service => service.serviceId === id);
+  if (!loaded) {
+    $("period").value = "all";
+    await load();
+  }
+  showService(encodedId);
 }
 
 function openEmailReview() {

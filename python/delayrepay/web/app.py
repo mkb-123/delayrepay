@@ -125,6 +125,7 @@ def create_app(root: Path | str | None = None) -> Flask:
             email_review = database.claim_email_events_needing_review()
             last_reconciliation = database.metadata_value("last_gmail_reconciliation")
             last_collection = database.latest_collection_time()
+            claim_tracking = database.claim_tracking_items()
         totals = {"potentialClaims": 0, "needsReview": 0, "claimed": 0, "noClaim": 0, "incompleteDays": 0}
         for report in reports:
             for key in ("potentialClaims", "needsReview", "claimed", "noClaim"):
@@ -138,6 +139,7 @@ def create_app(root: Path | str | None = None) -> Flask:
             "lastCollection": last_collection,
             "gmailConfigured": bool(token_value and Path(token_value).is_file()),
             "emailReview": email_review,
+            "claimTracking": claim_tracking,
             "lastBackup": datetime.fromtimestamp(backups[0].stat().st_mtime, timezone.utc).isoformat() if backups else None,
             "backupMirrorConfigured": bool(mirror_value),
             "backupMirrorAvailable": bool(mirror_value and Path(mirror_value).is_dir()),

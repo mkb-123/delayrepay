@@ -230,6 +230,30 @@ class Database:
         ).fetchone()
         return dict(row) if row else None
 
+    def claim_tracking_items(self) -> list[dict[str, Any]]:
+        rows = self.connection.execute("""
+            SELECT s.payload_json, c.claimed_at, l.status, l.status_at,
+                   l.operator_code, l.claim_reference, l.explanation
+            FROM services s
+            LEFT JOIN claims c ON c.service_id = s.service_id
+            LEFT JOIN claim_lifecycle l ON l.service_id = s.service_id
+            WHERE c.service_id IS NOT NULL OR l.service_id IS NOT NULL
+            ORDER BY s.service_date DESC, s.scheduled_departure
+        """).fetchall()
+        items = []
+        for row in rows:
+            service = json.loads(row["payload_json"])
+            lifecycle = None
+            if row["status"]:
+                lifecycle = {
+                    "status": row["status"], "status_at": row["status_at"],
+                    "operator_code": row["operator_code"],
+                    "claim_reference": row["claim_reference"],
+                    "explanation": row["explanation"],
+                }
+            items.append({**service, "claimedAt": row["claimed_at"], "claimLifecycle": lifecycle})
+        return items
+
     def claim_email_events_needing_review(self) -> list[dict[str, Any]]:
         rows = self.connection.execute("""
             SELECT gmail_message_id, service_id, operator_code, claim_reference,
