@@ -23,10 +23,16 @@ function submissionBadge(submission) {
   return `<span class="claim-submission submission-${esc(submission.state)}">${esc(label)}</span>`;
 }
 function claimDisplay(assessment) {
-  if (assessment.claimLifecycle) return {state: assessment.claimLifecycle.status, badge: lifecycleBadge(assessment.claimLifecycle)};
-  if (assessment.claimSubmission) return {state: assessment.claimSubmission.state, badge: submissionBadge(assessment.claimSubmission)};
-  if (assessment.status === "CLAIMED") return {state: "MARKED_CLAIMED", badge: '<span class="claim-lifecycle lifecycle-MARKED_CLAIMED">Marked claimed</span>'};
-  return {state: assessment.status, badge: ""};
+  if (assessment.claimLifecycle) {
+    const state = assessment.claimLifecycle.status;
+    return {state, label: lifecycleLabels[state] || state, badge: lifecycleBadge(assessment.claimLifecycle)};
+  }
+  if (assessment.claimSubmission) {
+    const state = assessment.claimSubmission.state;
+    return {state, label: submissionLabels[state] || state, badge: submissionBadge(assessment.claimSubmission)};
+  }
+  if (assessment.status === "CLAIMED") return {state: "MARKED_CLAIMED", label: "Marked claimed", badge: '<span class="claim-lifecycle lifecycle-MARKED_CLAIMED">Marked claimed</span>'};
+  return {state: assessment.status, label: null, badge: ""};
 }
 
 async function load() {
@@ -125,10 +131,11 @@ function renderRecommendations() {
         html += `<div class="recommend-row no-action"><strong>${route}</strong><span>No claim</span></div>`;
         continue;
       }
-      const label = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "✓ Claimed" : "Decide";
+      const claim = claimDisplay(item);
+      const assessmentLabel = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "✓ Claimed" : "Decide";
+      const label = claim.label || assessmentLabel;
       const detail = item.effectiveDelayMinutes == null ? label : `${item.effectiveDelayMinutes} min · ${label}`;
       const preference = item.preferredClaimedTime ? " · claimed time" : "";
-      const claim = claimDisplay(item);
       html += `<button class="recommend-row ${item.status} claim-state-${claim.state}" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span>${claim.badge}</button>`;
     }
     html += "</div></article>";
