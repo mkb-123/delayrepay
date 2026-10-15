@@ -73,7 +73,7 @@ def _save_catalogue(root: Path, service_date: str, found: list[dict[str, Any]], 
     value = {"version": 1, "updatedAt": _now(), "services": services}
     write_json(catalogue_path(root), value)
     lines = ["# Relevant service catalogue", "", f"Updated: {value['updatedAt']}", "", "| Day | Direction | Train | Operator | Journey |", "|---|---|---:|---|---|"]
-    days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     for item in services:
         lines.append(f"| {days[item['weekday']]} | {item['direction'].title()} | {item['scheduledDeparture']} | {item['operatorName']} | {item['origin']} → {item['destination']} ({item['scheduledArrival']}) |")
     (root / "service-catalogue.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
