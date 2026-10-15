@@ -9,6 +9,13 @@ $ErrorActionPreference = "Stop"
 function Assert-NativeSuccess([string]$Step) {
     if ($LASTEXITCODE -ne 0) { throw "$Step failed with exit code $LASTEXITCODE." }
 }
+function Convert-ToWslPath([string]$WindowsPath) {
+    $absolute = [System.IO.Path]::GetFullPath($WindowsPath)
+    if ($absolute -notmatch '^([A-Za-z]):\\(.*)$') { throw "Unsupported Windows path: $absolute" }
+    $drive = $Matches[1].ToLowerInvariant()
+    $rest = $Matches[2].Replace('\', '/')
+    return "/mnt/$drive/$rest"
+}
 $repoDir = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
 if (-not (Test-Path $chrome)) {
@@ -40,8 +47,9 @@ try {
     & $node (Join-Path $PSScriptRoot "export-browser-cookies.mjs") $port $settings.Domain $cookieFile
     Assert-NativeSuccess "Cookie export"
     if (-not (Test-Path $cookieFile)) { throw "Cookie export did not create $cookieFile." }
-    $wslCookieFile = (& wsl wslpath -a $cookieFile).Trim()
-    Assert-NativeSuccess "Windows-to-WSL path conversion"
+    $wslCookieFile = Convert-ToWslPath $cookieFile
+    & wsl test -f $wslCookieFile
+    Assert-NativeSuccess "Windows-to-WSL cookie-file access"
     & wsl ssh $PiHost "mkdir -p /var/lib/delayrepay/secrets && chmod 700 /var/lib/delayrepay/secrets"
     Assert-NativeSuccess "Pi secrets-directory setup"
     & wsl scp $wslCookieFile "${PiHost}:/var/lib/delayrepay/secrets/$($Operator.ToLower())-cookies.json"
