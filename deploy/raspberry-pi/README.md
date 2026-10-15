@@ -177,6 +177,18 @@ Open `http://localhost:6080/vnc.html` on the computer running SSH. Finish the
 login and press Enter in the terminal, then repeat with `LM`. noVNC binds only
 to `127.0.0.1` on the Pi, so it is not exposed to the home network or internet.
 
+For a faster login from Windows, use a normal laptop browser instead of VNC:
+
+```powershell
+.\scripts\windows\claim-login.ps1 -Operator VT
+.\scripts\windows\claim-login.ps1 -Operator LM
+```
+
+Each command opens Chrome or Edge locally, waits for you to finish login and
+CAPTCHA, then copies only the relevant session cookies over SSH to
+`/var/lib/delayrepay/secrets`. Cookie exports are deleted from the laptop's
+temporary directory after transfer and are never stored in Git.
+
 On the first installation, the script copies the repository's existing SQLite database and catalogue into `/var/lib/delayrepay`. Later Git pulls do not overwrite live claim history.
 
 Open `http://delayrepay.local` from a device on the same network. Nginx listens

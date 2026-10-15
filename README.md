@@ -217,6 +217,16 @@ cd ~/delayrepay
 .venv/bin/delayrepay claim-login --operator LM
 ```
 
+On a Windows laptop, the faster setup avoids VNC entirely. From PowerShell in
+the repository, run the following once for each operator. A normal local Chrome
+window opens; after login and CAPTCHA, the script transfers only that site's
+session cookies to the protected Pi secrets directory:
+
+```powershell
+.\scripts\windows\claim-login.ps1 -Operator VT
+.\scripts\windows\claim-login.ps1 -Operator LM
+```
+
 Complete any CAPTCHA and confirm that the season ticket and preferred payment
 method are saved in each account. Close neither browser manually: return to the
 terminal and press Enter so Playwright saves the session cleanly. Sessions live

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import os
 import shutil
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -63,6 +64,20 @@ def _launch_options() -> dict[str, str]:
     return {"executable_path": executable} if executable else {}
 
 
+def _cookie_file(root: Path, operator_code: str) -> Path:
+    return root / "secrets" / f"{operator_code.lower()}-cookies.json"
+
+
+def _load_exported_cookies(context: Any, root: Path, operator_code: str) -> None:
+    path = _cookie_file(root, operator_code)
+    if not path.is_file():
+        return
+    cookies = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(cookies, list):
+        raise ClaimBrowserError(f"Invalid cookie export for {operator_code}.")
+    context.add_cookies(cookies)
+
+
 def login(root: Path, operator_code: str) -> None:
     if operator_code not in ADAPTERS:
         raise ValueError(f"Unsupported operator: {operator_code}")
@@ -70,6 +85,7 @@ def login(root: Path, operator_code: str) -> None:
         context = playwright.chromium.launch_persistent_context(
             str(profile_dir(root, operator_code)), headless=False, **_launch_options(),
         )
+        _load_exported_cookies(context, root, operator_code)
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(ADAPTERS[operator_code].login_portal, wait_until="domcontentloaded")
         _fill_credentials(page, operator_code)
@@ -168,6 +184,7 @@ def check_session(root: Path, operator_code: str) -> tuple[str, str]:
         context = playwright.chromium.launch_persistent_context(
             str(profile_dir(root, operator_code)), headless=True, **_launch_options(),
         )
+        _load_exported_cookies(context, root, operator_code)
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(adapter.login_portal, wait_until="domcontentloaded", timeout=60_000)
@@ -192,6 +209,7 @@ def submit(root: Path, service: dict[str, Any], mode: str = "CALIBRATE") -> Subm
         context = playwright.chromium.launch_persistent_context(
             str(profile_dir(root, operator_code)), headless=True, **_launch_options(),
         )
+        _load_exported_cookies(context, root, operator_code)
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(adapter.login_portal, wait_until="domcontentloaded", timeout=60_000)
