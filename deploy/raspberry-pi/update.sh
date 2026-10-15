@@ -37,10 +37,19 @@ fi
 git checkout -- .
 old_head="$(git rev-parse --short HEAD)"
 git pull --ff-only
-echo "Code:     $old_head -> $(git rev-parse --short HEAD)"
+new_head="$(git rev-parse --short HEAD)"
+echo "Code:     $old_head -> $new_head"
 
-# 3. Reinstall dependencies and units, restart services, then check health.
-"$repo_dir/deploy/raspberry-pi/install.sh"
+# 3. Code-only updates need just the venv refreshed and one service restart.
+#    The full installer (apt, systemd units, nginx) runs only when deployment
+#    files changed or --full is given.
+if [[ "${1:-}" == "--full" ]] || ! git diff --quiet "$old_head" "$new_head" -- deploy scripts/linux; then
+  echo "Deployment files changed (or --full): running install.sh"
+  "$repo_dir/deploy/raspberry-pi/install.sh"
+else
+  "$repo_dir/.venv/bin/pip" install -q -e "$repo_dir"
+  sudo systemctl restart delayrepay.service
+fi
 sleep 3
 "$repo_dir/deploy/raspberry-pi/verify.sh"
 echo "After:    $(row_counts)"
