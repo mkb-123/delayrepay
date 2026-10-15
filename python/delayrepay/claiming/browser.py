@@ -121,8 +121,19 @@ def _fill_credentials(page: Any, operator_code: str) -> bool:
     password = os.environ.get(f"{prefix}_DELAY_REPAY_PASSWORD", "")
     if not email or not password:
         return False
+    cookie_button = page.get_by_role("button", name=re.compile(r"cookie consent|accept", re.I)).first
+    if cookie_button.count() and cookie_button.is_visible():
+        try:
+            cookie_button.click()
+            page.wait_for_timeout(250)
+        except Exception:
+            pass
     email_field = page.get_by_label(re.compile(r"email(?: address)?", re.I)).first
     password_field = page.get_by_label(re.compile(r"password", re.I)).first
+    if not email_field.count():
+        email_field = page.locator('input[type="email"]').first
+    if not password_field.count():
+        password_field = page.locator('input[type="password"]').first
     if not email_field.count() or not password_field.count():
         return False
     email_field.fill(email)
