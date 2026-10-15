@@ -12,6 +12,13 @@ if (-not (Test-Path $chrome)) {
     $chrome = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 }
 if (-not (Test-Path $chrome)) { throw "Chrome or Edge was not found." }
+$nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+$node = if ($nodeCommand) { $nodeCommand.Source } else {
+    Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
+}
+if (-not (Test-Path $node)) {
+    throw "Node.js was not found. Install Node.js or run this command from a Codex terminal."
+}
 
 $settings = if ($Operator -eq "VT") {
     @{ Url = "https://delayrepay.avantiwestcoast.co.uk/"; Domain = "delayrepay.avantiwestcoast.co.uk" }
@@ -27,7 +34,7 @@ $browser = Start-Process -FilePath $chrome -ArgumentList @(
 ) -PassThru
 try {
     Read-Host "Log in fully in the browser, complete CAPTCHA, then press Enter here"
-    node (Join-Path $PSScriptRoot "export-browser-cookies.mjs") $port $settings.Domain $cookieFile
+    & $node (Join-Path $PSScriptRoot "export-browser-cookies.mjs") $port $settings.Domain $cookieFile
     ssh $PiHost "mkdir -p /var/lib/delayrepay/secrets && chmod 700 /var/lib/delayrepay/secrets"
     scp $cookieFile "${PiHost}:/var/lib/delayrepay/secrets/$($Operator.ToLower())-cookies.json"
     ssh $PiHost "chmod 600 /var/lib/delayrepay/secrets/$($Operator.ToLower())-cookies.json"
