@@ -50,7 +50,7 @@ window.awcClaim = async (p) => {
   //    which fills ticket type and payment and jumps to the review page
   (await wait(() => [...document.querySelectorAll('mat-radio-button')].find(r => vis(r) && r.innerText.trim() === 'No'))).querySelector('input').click(); await sleep(1200);
   (await wait(() => [...document.querySelectorAll('main mat-card')].find(c => vis(c) && /London Terminals/.test(c.innerText)))).click(); await sleep(1500);
-  await wait(() => /Review\s+Please review/.test(document.body.innerText));
+  await wait(() => /Please review the provided claim information/.test(document.body.innerText));
   const rv = norm(document.querySelector('main').innerText); const m = s => (rv.match(s) || [])[1];
   const summary = { date: m(/Travel date (\S+)/), delay: m(/Delay duration (Between [\d -]+ Minutes|120 Minutes or more)/), method: m(/Method (\w+)/), ticket: m(/Ticket price (\S+)/) };
   if (p.submit) {
