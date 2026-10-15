@@ -126,8 +126,8 @@ def create_app(root: Path | str | None = None) -> Flask:
         start = date.fromisoformat(request.args.get("from", (end - timedelta(days=9)).isoformat()))
         if start > end:
             raise ValueError("from must be on or before to")
-        if (end - start).days > 3660:
-            raise ValueError("Date range is too large")
+        if (end - start).days > 36525:
+            raise ValueError("Choose a date range of 100 years or less.")
         reports = []
         with Database(data_root) as database:
             for service_date in reversed(database.stored_dates(start.isoformat(), end.isoformat())):
