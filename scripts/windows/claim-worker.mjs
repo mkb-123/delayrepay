@@ -4,6 +4,7 @@
 // No AI is involved. Set DELAYREPAY_DRY_RUN=1 to stop before the final Submit.
 import { chromium } from "playwright-core";
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,26 +56,54 @@ async function credentialsFor(code) {
   const [emailKey, passwordKey] = credentialKeys[code];
   return values[emailKey] && values[passwordKey] ? { email: values[emailKey], password: values[passwordKey] } : null;
 }
+let loginNote = "";
 async function ensureLoggedIn(page, code) {
+  loginNote = "";
   const adapter = adapters[code];
   await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(2500);
   if (await adapter.loggedIn(page)) return true;
   const creds = await credentialsFor(code);
-  if (!creds) return false;
+  if (!creds) { loginNote = "no credentials file (run set-operator-credentials.ps1)"; return false; }
   await page.goto(loginUrls[code], { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(2500);
+  // A cookie banner can cover the form on a fresh profile; decline non-essential cookies.
+  await page.locator('[aria-label="reject all cookie message"], button:has-text("Reject all")').first().click({ timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(500);
   const email = page.locator('#emailadd, input[type="email"], input[name*="mail" i], input[formcontrolname*="mail" i]').first();
   const password = page.locator('input[type="password"]').first();
-  if (!await email.count() || !await password.count()) return false;
-  await email.fill(creds.email); await password.fill(creds.password);
+  if (!await email.count() || !await password.count()) { loginNote = `login form not found at ${page.url()}`; return false; }
+  // LNR marks the fields readonly until focused (anti-autofill); focus, unlock, then type.
+  for (const [field, value] of [[email, creds.email], [password, creds.password]]) {
+    await field.click();
+    await field.evaluate(el => el.removeAttribute("readonly"));
+    await field.fill(value);
+  }
   await page.getByRole("button", { name: /^\s*(log ?in|sign ?in|continue)\s*$/i }).first().click();
   await page.waitForTimeout(5000);
-  if (await page.locator('iframe[src*="recaptcha/api2/bframe"]').first().isVisible().catch(() => false)) return false; // CAPTCHA challenge
+  const afterSubmit = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ");
+  const hint = afterSubmit.match(/(captcha|incorrect|invalid|locked|verify|try again|not recognised)[^.]{0,80}/i)?.[0] || "";
+  if (await page.locator('iframe[src*="recaptcha/api2/bframe"]').first().isVisible().catch(() => false)) { loginNote = "CAPTCHA challenge shown after login attempt"; return false; }
   await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(2500);
-  return adapter.loggedIn(page);
+  const ok = await adapter.loggedIn(page);
+  if (!ok) loginNote = `still signed out after submitting credentials at ${page.url()}${hint ? ` (page said: ${hint})` : ""}`;
+  return ok;
 }
+
+// One worker at a time: two runs would fight over the same Chrome profile and could double-claim.
+const lockFile = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "DelayRepay", "worker.lock");
+async function acquireLock() {
+  await fs.mkdir(path.dirname(lockFile), { recursive: true });
+  try {
+    const pid = Number(await fs.readFile(lockFile, "utf8"));
+    if (pid) { try { process.kill(pid, 0); console.log(`Another worker (pid ${pid}) is running; exiting.`); return false; } catch {} }
+  } catch {}
+  await fs.writeFile(lockFile, String(process.pid));
+  return true;
+}
+if (!await acquireLock()) process.exit(0);
+process.on("exit", () => { try { fsSync.rmSync(lockFile, { force: true }); } catch {} });
 
 async function post(route, body = {}) {
   const response = await fetch(api + route, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -97,12 +126,18 @@ async function contextFor(code) {
 async function processJob(job) {
   const adapter = adapters[job.operatorCode];
   if (!adapter) { await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_ATTENTION", error: `Unsupported operator ${job.operatorCode}` }); return; }
-  const context = await contextFor(job.operatorCode);
+  let context;
+  try { context = await contextFor(job.operatorCode); } catch (error) {
+    await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_ATTENTION", error: `Chrome could not open the ${job.operatorCode} profile: ${String(error.message).split("\n")[0]}` });
+    return;
+  }
   const page = context.pages()[0] || await context.newPage();
   let submitStarted = false;
   try {
     if (!await ensureLoggedIn(page, job.operatorCode)) {
-      await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_LOGIN", error: `Log in to ${job.operatorCode} with claim-login.ps1.` });
+      const reason = `Log in to ${job.operatorCode} with claim-login.ps1. Automatic login: ${loginNote || "not attempted"}.`;
+      await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_LOGIN", error: reason, screenshotBase64: await screenshot(page).catch(() => null) });
+      console.log(`  needs login: ${reason}`);
       return;
     }
     const s = job.service;

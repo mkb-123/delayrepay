@@ -116,8 +116,8 @@ function renderHealth() {
 function renderClaimPipeline() {
   const services = data.operations?.claimTracking || [];
   const active = services.filter(service => service.claimSubmission && !["SUBMITTED"].includes(service.claimSubmission.state));
-  const awaiting = services.filter(service => ["SUBMITTED", "APPROVED", "NEEDS_REVIEW"].includes(service.claimLifecycle?.status));
-  const complete = services.filter(service => ["PAID", "REJECTED"].includes(service.claimLifecycle?.status));
+  const awaiting = services.filter(service => ["SUBMITTED", "NEEDS_REVIEW"].includes(service.claimLifecycle?.status));
+  const complete = services.filter(service => ["APPROVED", "PAID", "REJECTED"].includes(service.claimLifecycle?.status));
   const badge = service => lifecycleBadge(service.claimLifecycle) || submissionBadge(service.claimSubmission) || '<span class="claim-lifecycle lifecycle-SUBMITTED">Marked claimed</span>';
   const cards = rows => rows.map(service => `<button class="pipeline-card" onclick="showTrackedClaim('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)}</span>${badge(service)}</button>`).join("");
   $("claimPipeline").innerHTML = `<div class="section-heading"><h2>Claim queue</h2><button class="secondary small" onclick="runWorkerNow()">Run worker now</button></div>${active.length ? `<div class="pipeline-grid">${cards(active)}</div>` : '<p class="empty compact">Nothing queued.</p>'}${awaiting.length ? `<details class="completed-claims" open><summary>${awaiting.length} awaiting operator</summary><div class="pipeline-grid">${cards(awaiting)}</div></details>` : ""}${complete.length ? `<details class="completed-claims"><summary>${complete.length} completed claim${complete.length === 1 ? "" : "s"}</summary><div class="pipeline-grid">${cards(complete)}</div></details>` : ""}`;
@@ -194,7 +194,7 @@ function render() {
   const tracking = data.operations?.claimTracking || [];
   $("queuedCount").textContent = tracking.filter(s => ["QUEUED", "RETRY", "PROCESSING", "CALIBRATION_READY"].includes(s.claimSubmission?.state)).length;
   $("attentionCount").textContent = tracking.filter(s => ["NEEDS_LOGIN", "NEEDS_ATTENTION"].includes(s.claimSubmission?.state)).length;
-  $("awaitingCount").textContent = tracking.filter(s => ["SUBMITTED", "APPROVED"].includes(s.claimLifecycle?.status)).length;
+  $("awaitingCount").textContent = tracking.filter(s => ["SUBMITTED"].includes(s.claimLifecycle?.status)).length;
   $("incompleteCount").textContent = data.summary.incompleteDays;
   $("rangeLabel").textContent = `${data.from} to ${data.to}`;
   const direction = $("direction").value, operator = $("operator").value, status = $("status").value;

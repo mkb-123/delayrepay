@@ -13,7 +13,7 @@ try {
             if ($tunnel.HasExited) { throw "The SSH tunnel exited before becoming ready." }
             try {
                 $health = (Invoke-RestMethod "http://127.0.0.1:8877/health").status -eq "ok"
-                $route = Invoke-WebRequest -Method Options "http://127.0.0.1:8877/api/private-worker/next"
+                $route = Invoke-WebRequest -UseBasicParsing -Method Options "http://127.0.0.1:8877/api/private-worker/next"
                 $ready = $health -and $route.StatusCode -eq 200
             } catch {}
         }

@@ -4,6 +4,18 @@ These instructions apply to the whole repository. The active application is
 the Python, Flask, and SQLite implementation under `python/delayrepay`.
 `legacy/` is archived reference material and must not be used for new work.
 
+## Guiding principle
+
+Minimise AI usage and make everything systematic. Routine work (collecting data,
+claiming, recording results, session upkeep, reconciliation) must run from
+scripts, timers, and the worker with no model in the loop. An agent is for
+exceptions: repairing a broken portal selector, handling a new situation, or
+building the next script. When an agent does a manual step twice, codify it:
+turn it into a tested script or command, record it in the docs, and make the
+failure path say why it failed (reason and screenshot) so the next fix needs no
+exploration. Prefer one call that does a whole job over many small steps, and
+never rely on an agent to remember to update the database: scripts must do it.
+
 ## Product rules
 
 - Monitor direct daily (Saturday and Sunday included) MKC to EUS services scheduled from 06:00 to 08:00
