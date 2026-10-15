@@ -29,6 +29,9 @@ window.lnrClaim = async (p) => {
   const radio = [...document.querySelectorAll('input[name=delay-date]')].find(r => r.value === p.date.replace(/-/g, '/'));
   if (radio && radio.id !== 'date5') { radio.click(); } else {
     document.getElementById('date5').click(); const dp = document.getElementById('datePickerValue'); dp.click(); dp.focus();
+    // step the calendar back to the target month (e.g. "September 2026")
+    const monthWanted = new Date(+p.date.slice(0, 4), +p.date.slice(5, 7) - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+    for (let k = 0; k < 3 && (document.querySelector('.datepicker-days .datepicker-switch') || {}).innerText?.trim() !== monthWanted; k++) { document.querySelector('.datepicker-days th.prev').click(); await sleep(300); }
     const day = String(+p.date.slice(8));
     const td = await wait(() => [...document.querySelectorAll('.datepicker-days td.day')].find(e => !/old|new|disabled/.test(e.className) && e.innerText.trim() === day));
     td.click(); await sleep(300);
