@@ -194,13 +194,42 @@ On the first installation, the script copies the repository's existing SQLite da
 Open `http://delayrepay.local` from a device on the same network. Nginx listens
 on normal HTTP port 80 and forwards privately to the Python dashboard on 8765.
 
-## Updating
+## Updating without losing data
 
-```bash
-cd delayrepay
-git pull --ff-only
-./deploy/raspberry-pi/install.sh
-```
+The Pi owns live state that Git does not contain, all under
+`/var/lib/delayrepay` (outside the checkout, so `git pull` cannot touch it):
+
+- `delayrepay.sqlite`: claim history, acknowledgements, lifecycle, submissions;
+- `secrets/`, `browser-profiles/`: Gmail OAuth, operator sessions;
+- `backups/`, `claim-screenshots/`, `output/`, `logs/`;
+- `~/delayrepay/.env`: credentials (ignored by Git).
+
+Never copy a SQLite file from the laptop over the Pi's, and never delete
+`/var/lib/delayrepay`. Code travels through Git only. To deploy:
+
+1. On the laptop, commit and `git push` to `main`.
+2. SSH to the Pi (from Windows: `wsl ssh bhakta-pi@pi.local`) and run:
+
+   ```bash
+   cd ~/delayrepay
+   ./deploy/raspberry-pi/update.sh
+   ```
+
+The script takes a verified database snapshot, refuses to run if the checkout
+has real local edits, fast-forwards `main`, reruns `install.sh` (which only
+seeds the database if none exists), restarts services, runs `verify.sh`, and
+prints row counts before and after plus rollback and restore commands.
+
+Schema changes are additive and applied automatically when the app starts
+(`CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ADD COLUMN`).
+
+Manual equivalent: `export-state.sh` or `python -m delayrepay backup`, then
+`git pull --ff-only`, `./deploy/raspberry-pi/install.sh`, `./deploy/raspberry-pi/verify.sh`.
+
+If something breaks: `git checkout <old-commit> && ./deploy/raspberry-pi/install.sh`
+to roll back code, or `restore-state.sh <snapshot>` to roll back data.
+Disk is tight (about 92% used); prune `data-store/backups` and old files in
+`/var/lib/delayrepay/backups` if the snapshot fails.
 
 ## Operations
 
