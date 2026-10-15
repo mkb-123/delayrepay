@@ -234,3 +234,15 @@ install, restore, update, or reboot.
 4. Reboot the Pi and confirm the dashboard and timers return.
 5. Disable the Codex automation named `Reconcile Delay Repay emails` only after
    the Pi reconciliation service succeeds, preventing two writers.
+
+## Password-free code updates
+
+`update.sh` needs root for one thing: restarting `delayrepay.service`. Allow just that once
+(this asks for your sudo password a single time):
+
+```bash
+cd ~/delayrepay && sudo ./deploy/raspberry-pi/allow-restart.sh
+```
+
+After that, code-only updates run with no prompts, including from automation. A change to
+`deploy/` or `scripts/linux/` still takes the full-install path, which needs sudo.
