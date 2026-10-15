@@ -190,3 +190,9 @@ dialog::backdrop { background: #10251eaa; }
   .recommend-row span { font-size: .78rem; }
   .deadline { font-size: .74rem; }
 }
+
+/* claim queue status chips, claim references and missing-data flag */
+.worker-status { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.worker-status span { font-size: .68rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.claim-ref { font-size: .62rem; font-weight: 600; opacity: .8; margin-left: 4px; }
+.no-data { color: #854d0e; font-weight: 700; }

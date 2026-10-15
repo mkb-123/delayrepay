@@ -15,10 +15,41 @@ function lifecycleBadge(lifecycle, compact = false) {
   if (!lifecycle) return "";
   const label = (compact ? lifecycleCompact : lifecycleLabels)[lifecycle.status] || lifecycle.status;
   const detail = lifecycle.claim_reference ? `${label} · ${lifecycle.claim_reference}` : label;
-  return `<span class="claim-lifecycle lifecycle-${esc(lifecycle.status)}" title="${esc(detail)}">${esc(compact ? label : detail)}</span>`;
+  const ref = lifecycle.claim_reference ? ` <small class="claim-ref">${esc(lifecycle.claim_reference)}</small>` : "";
+  return `<span class="claim-lifecycle lifecycle-${esc(lifecycle.status)}" title="${esc(detail)}">${esc(label)}${ref}</span>`;
+}
+function relativeTime(iso) {
+  if (!iso) return "never";
+  const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
+}
+// A claim leased by the worker but never finished (worker crashed or the laptop slept).
+function isStuck(submission) {
+  if (submission?.state !== "PROCESSING") return false;
+  const started = Date.parse(submission.startedAt || submission.started_at || submission.updated_at || "");
+  return Number.isFinite(started) && Date.now() - started > 30 * 60000;
+}
+function workerChip() {
+  const seen = data.operations?.laptopWorkerLastSeen;
+  const fresh = seen && Date.now() - Date.parse(seen) < 24 * 3600000;
+  const text = seen ? `Laptop worker seen ${relativeTime(seen)}` : "Laptop worker has not connected yet";
+  return `<span class="${fresh ? "health-ok" : "health-warn"}" title="Queued claims are collected when the laptop is on and signed in, about every 15 minutes.">${esc(text)}</span>`;
+}
+function sessionChips() {
+  const sessions = Object.fromEntries((data.operations?.operatorSessions || []).map(item => [item.operator_code, item]));
+  const names = {VT: "Avanti", LM: "LNR"};
+  return ["VT", "LM"].map(code => {
+    const session = sessions[code], ok = session?.status === "LOGIN_OK";
+    const text = `${names[code]} ${ok ? "signed in" : session ? "signed out" : "not checked"}${session?.checked_at ? ` · ${relativeTime(session.checked_at)}` : ""}`;
+    return `<span class="${ok ? "health-ok" : "health-warn"}" title="${esc(session?.explanation || "")}">${esc(text)}</span>`;
+  }).join("");
 }
 function submissionBadge(submission) {
   if (!submission) return "";
+  if (isStuck(submission)) return '<span class="claim-submission submission-NEEDS_ATTENTION">Stuck · retry</span>';
   const label = submissionLabels[submission.state] || submission.state;
   return `<span class="claim-submission submission-${esc(submission.state)}">${esc(label)}</span>`;
 }
@@ -48,13 +79,13 @@ function renderTodo() {
   const items = [];
   const ready = tracking.filter(s => s.claimSubmission?.state === "CALIBRATION_READY");
   const login = tracking.filter(s => s.claimSubmission?.state === "NEEDS_LOGIN");
-  const check = tracking.filter(s => s.claimSubmission?.state === "NEEDS_ATTENTION");
+  const check = tracking.filter(s => s.claimSubmission?.state === "NEEDS_ATTENTION" || isStuck(s.claimSubmission));
   const review = data.operations?.emailReview?.length || 0;
   const potential = data.summary.potentialClaims;
   const add = (kind, count, text, action) => count && items.push(`<button class="todo-item todo-${kind}" onclick="${action}"><strong>${count}</strong><span>${text}</span></button>`);
   add("claim", potential, `claim${potential === 1 ? "" : "s"} to choose`, "document.getElementById('recommendations').scrollIntoView({behavior:'smooth'})");
   add("ready", ready.length, "claim ready to approve", `showTrackedClaim('${ready[0] ? encodeURIComponent(ready[0].serviceId) : ""}')`);
-  add("warn", login.length, "need a login (open System, then Check accounts)", "document.getElementById('systemPanel').open = true");
+  add("warn", login.length, "need a login (run claim-login.ps1 on the laptop)", "document.getElementById('systemPanel').open = true");
   add("warn", check.length, "need a check", `showTrackedClaim('${check[0] ? encodeURIComponent(check[0].serviceId) : ""}')`);
   add("email", review, `email${review === 1 ? "" : "s"} to match`, "openEmailReview()");
   $("todo").innerHTML = items.length ? `<h2>To do now</h2><div class="todo-list">${items.join("")}</div>` : '<p class="todo-clear">✓ Nothing needs you right now.</p>';
@@ -97,10 +128,11 @@ function renderOperatorHealth() {
   const cards = ["VT", "LM"].map(code => {
     const session = sessions[code];
     const healthy = session?.status === "LOGIN_OK";
-    const state = healthy ? "Account ready" : session?.status === "LOGIN_NEEDED" ? "Login needed" : session ? "Check failed" : "Not checked";
-    return `<article class="operator-card ${healthy ? "ready" : "warning"}"><strong>${names[code]}</strong><span>${state}</span><small>${calibrated[code] ? "Automation approved" : "First claim needs approval"}${session?.checked_at ? ` · ${timestamp(session.checked_at)}` : ""}</small></article>`;
+    const state = healthy ? "Signed in" : session?.status === "LOGIN_NEEDED" ? "Signed out" : session ? "Check failed" : "Not checked";
+    const hint = healthy ? "" : "<br>Run claim-login.ps1 on the laptop.";
+    return `<article class="operator-card ${healthy ? "ready" : "warning"}"><strong>${names[code]}</strong><span>${state}</span><small>${session?.checked_at ? `Checked ${relativeTime(session.checked_at)}` : "Never checked"}${session?.explanation && !healthy ? ` · ${esc(session.explanation)}` : ""}${hint}</small></article>`;
   }).join("");
-  $("operatorHealth").innerHTML = `${cards}<button class="secondary" onclick="checkSessions()">Check accounts</button>`;
+  $("operatorHealth").innerHTML = `${cards}<p class="empty compact">${workerChip()} The laptop checks each login daily.</p>`;
 }
 
 function renderHealth() {
@@ -120,7 +152,7 @@ function renderClaimPipeline() {
   const complete = services.filter(service => ["APPROVED", "PAID", "REJECTED"].includes(service.claimLifecycle?.status));
   const badge = service => lifecycleBadge(service.claimLifecycle) || submissionBadge(service.claimSubmission) || '<span class="claim-lifecycle lifecycle-SUBMITTED">Marked claimed</span>';
   const cards = rows => rows.map(service => `<button class="pipeline-card" onclick="showTrackedClaim('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)}</span>${badge(service)}</button>`).join("");
-  $("claimPipeline").innerHTML = `<div class="section-heading"><h2>Claim queue</h2><button class="secondary small" onclick="runWorkerNow()">Run worker now</button></div>${active.length ? `<div class="pipeline-grid">${cards(active)}</div>` : '<p class="empty compact">Nothing queued.</p>'}${awaiting.length ? `<details class="completed-claims" open><summary>${awaiting.length} awaiting operator</summary><div class="pipeline-grid">${cards(awaiting)}</div></details>` : ""}${complete.length ? `<details class="completed-claims"><summary>${complete.length} completed claim${complete.length === 1 ? "" : "s"}</summary><div class="pipeline-grid">${cards(complete)}</div></details>` : ""}`;
+  $("claimPipeline").innerHTML = `<div class="section-heading"><h2>Claim queue</h2><div class="worker-status">${workerChip()}${sessionChips()}</div></div>${active.length ? `<div class="pipeline-grid">${cards(active)}</div>` : '<p class="empty compact">Nothing queued.</p>'}${awaiting.length ? `<details class="completed-claims" open><summary>${awaiting.length} awaiting operator</summary><div class="pipeline-grid">${cards(awaiting)}</div></details>` : ""}${complete.length ? `<details class="completed-claims"><summary>${complete.length} completed claim${complete.length === 1 ? "" : "s"}</summary><div class="pipeline-grid">${cards(complete)}</div></details>` : ""}`;
 }
 
 async function showTrackedClaim(encodedId) {
@@ -169,7 +201,9 @@ function renderRecommendations() {
       const claim = claimDisplay(item);
       const assessmentLabel = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "Marked claimed" : "Decide";
       const label = claim.label || assessmentLabel;
-      const detail = item.effectiveDelayMinutes == null ? label : `${item.effectiveDelayMinutes} min · ${label}`;
+      // A journey that has already run but has no timing data cannot be claimed reliably: flag it.
+      const noData = item.effectiveDelayMinutes == null && !item.claimLifecycle && Date.parse(item.scheduledDeparture) < Date.now() - 2 * 3600000;
+      const detail = item.effectiveDelayMinutes == null ? (noData ? `${label} · <span class="no-data">no timing data</span>` : label) : `${item.effectiveDelayMinutes} min · ${label}`;
       const preference = item.preferredClaimedTime ? " · claimed time" : "";
       const left = deadlineText(day.date);
       const urgent = daysLeft(day.date) <= 5 ? " urgent" : "";
@@ -193,7 +227,7 @@ function render() {
   $("potentialCount").textContent = data.summary.potentialClaims;
   const tracking = data.operations?.claimTracking || [];
   $("queuedCount").textContent = tracking.filter(s => ["QUEUED", "RETRY", "PROCESSING", "CALIBRATION_READY"].includes(s.claimSubmission?.state)).length;
-  $("attentionCount").textContent = tracking.filter(s => ["NEEDS_LOGIN", "NEEDS_ATTENTION"].includes(s.claimSubmission?.state)).length;
+  $("attentionCount").textContent = tracking.filter(s => ["NEEDS_LOGIN", "NEEDS_ATTENTION"].includes(s.claimSubmission?.state) || isStuck(s.claimSubmission)).length;
   $("awaitingCount").textContent = tracking.filter(s => ["SUBMITTED"].includes(s.claimLifecycle?.status)).length;
   $("incompleteCount").textContent = data.summary.incompleteDays;
   $("rangeLabel").textContent = `${data.from} to ${data.to}`;
@@ -270,8 +304,8 @@ function showService(encodedId) {
   if (a.status === "NEEDS_REVIEW") actions += `<button class="secondary" onclick="claim('${encodedId}', false)">Mark as already claimed</button><button class="secondary" onclick="notClaimable('${encodedId}', false)">Not claimable</button>`;
   if (a.status === "CLAIMED") actions += `<button class="secondary" onclick="claim('${encodedId}', true)">Undo</button>`;
   if (submission?.state === "CALIBRATION_READY") actions += `<button onclick="confirmCalibration('${encodedId}')">Approve form & submit</button>`;
-  if (["NEEDS_LOGIN", "NEEDS_ATTENTION"].includes(submission?.state)) actions += `<button onclick="retrySubmission('${encodedId}')">Retry</button>`;
-  if (submission && !["SUBMITTED", "PROCESSING"].includes(submission.state)) actions += `<button class="secondary" onclick="queueSubmission('${encodedId}', true)">Remove from queue</button>`;
+  if (["NEEDS_LOGIN", "NEEDS_ATTENTION"].includes(submission?.state) || isStuck(submission)) actions += `<button onclick="retrySubmission('${encodedId}')">Retry</button>`;
+  if (submission && (!["SUBMITTED", "PROCESSING"].includes(submission.state) || isStuck(submission))) actions += `<button class="secondary" onclick="queueSubmission('${encodedId}', true)">Remove from queue</button>`;
   if (a.notClaimableAt) actions += `<button class="secondary" onclick="notClaimable('${encodedId}', true)">Undo not claimable</button>`;
   if (a.claimUrl && ["POTENTIAL", "NEEDS_REVIEW", "CLAIMED"].includes(a.status)) actions += `<a href="${esc(a.claimUrl)}" target="_blank" rel="noopener">Open claim page →</a>`;
   const lifecycle = a.claimLifecycle;
@@ -308,8 +342,6 @@ async function postAction(url, success) {
 }
 function confirmCalibration(encodedId) { return postAction(`/api/services/${encodedId}/submission/confirm-calibration`, "Submission approved and queued."); }
 function retrySubmission(encodedId) { return postAction(`/api/services/${encodedId}/submission/retry`, "Claim queued again."); }
-function runWorkerNow() { return postAction("/api/claim-worker/run", "Start the private worker on the Windows laptop."); }
-function checkSessions() { return postAction("/api/operator-sessions/check", "Account checks run on the Windows laptop."); }
 
 async function copyReference(value) {
   await navigator.clipboard.writeText(value);

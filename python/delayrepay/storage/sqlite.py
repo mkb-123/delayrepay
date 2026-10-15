@@ -211,6 +211,21 @@ class Database:
         row = self.connection.execute("SELECT value FROM metadata WHERE key=?", (key,)).fetchone()
         return row["value"] if row else None
 
+    def set_metadata_value(self, key: str, value: str) -> None:
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO metadata(key, value) VALUES(?, ?)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """, (key, value))
+
+    def recorded_claims_on_date(self, operator_code: str, service_date: str) -> int:
+        """Claims already recorded for this operator and travel date, for the portal duplicate guard."""
+        row = self.connection.execute("""
+            SELECT COUNT(*) AS n FROM claim_lifecycle l JOIN services s ON s.service_id=l.service_id
+            WHERE s.operator_code=? AND s.service_date=?
+        """, (operator_code, service_date)).fetchone()
+        return int(row["n"])
+
     def stored_dates(self, start_date: str, end_date: str) -> list[str]:
         rows = self.connection.execute(
             "SELECT DISTINCT service_date FROM services WHERE service_date BETWEEN ? AND ? ORDER BY service_date", (start_date, end_date)

@@ -135,6 +135,7 @@ def create_app(root: Path | str | None = None) -> Flask:
             last_collection = database.latest_collection_time()
             claim_tracking = database.claim_tracking_items()
             operator_sessions = database.operator_sessions()
+            laptop_seen = database.metadata_value("laptop_worker_last_seen")
             calibrated = {code: database.operator_calibrated(code) for code in ("VT", "LM")}
         totals = {"potentialClaims": 0, "needsReview": 0, "claimed": 0, "noClaim": 0, "incompleteDays": 0}
         for report in reports:
@@ -151,6 +152,7 @@ def create_app(root: Path | str | None = None) -> Flask:
             "emailReview": email_review,
             "claimTracking": claim_tracking,
             "operatorSessions": operator_sessions,
+            "laptopWorkerLastSeen": laptop_seen,
             "operatorCalibrated": calibrated,
             "lastBackup": datetime.fromtimestamp(backups[0].stat().st_mtime, timezone.utc).isoformat() if backups else None,
             "backupMirrorConfigured": bool(mirror_value),
@@ -303,12 +305,14 @@ def create_app(root: Path | str | None = None) -> Flask:
     def private_worker_next():
         _require_loopback_worker()
         with Database(data_root) as database:
+            database.set_metadata_value("laptop_worker_last_seen", _now())  # heartbeat, even when idle
             item = database.lease_claim_submission(_now())
+            recorded = database.recorded_claims_on_date(item["operator_code"], item["service"]["serviceDate"]) if item else 0
         if not item:
             return jsonify({"job": None})
         return jsonify({"job": {
             "serviceId": item["service_id"], "operatorCode": item["operator_code"],
-            "mode": item.get("mode") or "CALIBRATE", "service": item["service"],
+            "mode": item.get("mode") or "CALIBRATE", "service": item["service"], "recordedOnDate": recorded,
         }})
 
     @app.post("/api/private-worker/result")
