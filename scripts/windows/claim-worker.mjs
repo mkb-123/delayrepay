@@ -5,6 +5,7 @@
 import { chromium } from "playwright-core";
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
+import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -123,6 +124,20 @@ async function contextFor(code) {
   return context;
 }
 
+// Restore and focus the (normally minimised) Chrome window, and raise a Windows balloon notification.
+async function showWindow(page) {
+  try {
+    const cdp = await page.context().newCDPSession(page);
+    const { windowId } = await cdp.send("Browser.getWindowForTarget");
+    await cdp.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "normal" } });
+  } catch {}
+  await page.bringToFront().catch(() => {});
+}
+function notify(message) {
+  const script = `Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $n = New-Object System.Windows.Forms.NotifyIcon; $n.Icon = [System.Drawing.SystemIcons]::Information; $n.Visible = $true; $n.ShowBalloonTip(15000, 'Delay Repay', '${message.replace(/'/g, "")}', [System.Windows.Forms.ToolTipIcon]::Info); Start-Sleep 16; $n.Dispose()`;
+  spawn("powershell.exe", ["-NoProfile", "-WindowStyle", "Hidden", "-Command", script], { stdio: "ignore", detached: true }).unref();
+}
+
 const spacingMs = { VT: 75000, LM: 20000 };
 const lastSubmit = {};
 
@@ -209,7 +224,16 @@ async function processJob(job) {
     if (pause > 0) { console.log(`  waiting ${Math.ceil(pause / 1000)}s between claims`); await page.waitForTimeout(pause); }
     submitStarted = true;
     await page.getByRole("button", { name: /Submit claim/i }).or(page.getByRole("link", { name: /Submit claim/i })).first().click();
-    await page.waitForFunction(re => new RegExp(re, "i").test(document.body.innerText), adapter.confirmed.source, { timeout: 45000 });
+    const waitConfirmed = timeout => page.waitForFunction(re => new RegExp(re, "i").test(document.body.innerText), adapter.confirmed.source, { timeout });
+    try { await waitConfirmed(45000); } catch (error) {
+      // reCAPTCHA can escalate to an image challenge. A person has to solve it: surface the window and wait.
+      const challenge = await page.locator('iframe[title*="recaptcha challenge" i], iframe[src*="recaptcha/api2/bframe"]').first().isVisible().catch(() => false);
+      if (!challenge) throw error;
+      console.log("  CAPTCHA challenge shown: solve it in the Chrome window (waiting up to 15 minutes)");
+      await showWindow(page);
+      notify("Solve the CAPTCHA in the Chrome window to finish this Delay Repay claim.");
+      await waitConfirmed(15 * 60000);
+    }
     lastSubmit[job.operatorCode] = Date.now();
     const body = await page.locator("body").innerText();
     const reference = body.match(adapter.reference)?.[0] || null;
