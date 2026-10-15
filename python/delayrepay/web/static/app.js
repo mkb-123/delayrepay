@@ -9,8 +9,8 @@ function esc(value) { const span = document.createElement("span"); span.textCont
 function dateRange(days) { const end = new Date(); const start = new Date(end); start.setDate(end.getDate() - days + 1); return [isoDate(start.toISOString()), isoDate(end.toISOString())]; }
 function timestamp(value) { return value ? new Intl.DateTimeFormat("en-GB", {dateStyle: "medium", timeStyle: "short"}).format(new Date(value)) : "Never"; }
 const lifecycleLabels = {SUBMITTED: "Submitted", APPROVED: "Approved", REJECTED: "Rejected", PAID: "Paid", NEEDS_REVIEW: "Email review"};
-const lifecycleCompact = {SUBMITTED: "Sent", APPROVED: "OK", REJECTED: "No", PAID: "Paid", NEEDS_REVIEW: "?"};
-const submissionLabels = {QUEUED: "Queued on Pi", PROCESSING: "Submitting", CALIBRATION_READY: "Ready to approve", SUBMITTED: "Submitted", NEEDS_LOGIN: "Login needed", NEEDS_ATTENTION: "Check needed", RETRY: "Retry queued"};
+const lifecycleCompact = {SUBMITTED: "Sent", APPROVED: "✓", REJECTED: "✕", PAID: "Paid", NEEDS_REVIEW: "?"};
+const submissionLabels = {QUEUED: "Queued", PROCESSING: "Submitting", CALIBRATION_READY: "Approve form", SUBMITTED: "Submitted", NEEDS_LOGIN: "Login needed", NEEDS_ATTENTION: "Check needed", RETRY: "Queued"};
 function lifecycleBadge(lifecycle, compact = false) {
   if (!lifecycle) return "";
   const label = (compact ? lifecycleCompact : lifecycleLabels)[lifecycle.status] || lifecycle.status;
@@ -35,6 +35,34 @@ function claimDisplay(assessment) {
   return {state: assessment.status, label: null, badge: ""};
 }
 
+function daysLeft(serviceDate) {
+  const deadline = new Date(`${serviceDate}T12:00:00`); deadline.setDate(deadline.getDate() + 28);
+  return Math.ceil((deadline - new Date()) / 86400000);
+}
+function deadlineText(serviceDate) {
+  const left = daysLeft(serviceDate);
+  return left < 0 ? `${-left}d overdue` : left === 0 ? "last day" : `${left}d left`;
+}
+function renderTodo() {
+  const tracking = data.operations?.claimTracking || [];
+  const items = [];
+  const ready = tracking.filter(s => s.claimSubmission?.state === "CALIBRATION_READY");
+  const login = tracking.filter(s => s.claimSubmission?.state === "NEEDS_LOGIN");
+  const check = tracking.filter(s => s.claimSubmission?.state === "NEEDS_ATTENTION");
+  const review = data.operations?.emailReview?.length || 0;
+  const potential = data.summary.potentialClaims;
+  const add = (kind, count, text, action) => count && items.push(`<button class="todo-item todo-${kind}" onclick="${action}"><strong>${count}</strong><span>${text}</span></button>`);
+  add("claim", potential, `claim${potential === 1 ? "" : "s"} to choose`, "document.getElementById('recommendations').scrollIntoView({behavior:'smooth'})");
+  add("ready", ready.length, "claim ready to approve", `showTrackedClaim('${ready[0] ? encodeURIComponent(ready[0].serviceId) : ""}')`);
+  add("warn", login.length, "need a login (open System, then Check accounts)", "document.getElementById('systemPanel').open = true");
+  add("warn", check.length, "need a check", `showTrackedClaim('${check[0] ? encodeURIComponent(check[0].serviceId) : ""}')`);
+  add("email", review, `email${review === 1 ? "" : "s"} to match`, "openEmailReview()");
+  $("todo").innerHTML = items.length ? `<h2>To do now</h2><div class="todo-list">${items.join("")}</div>` : '<p class="todo-clear">✓ Nothing needs you right now.</p>';
+  const problems = login.length + check.length + (data.operations?.lastCollection ? 0 : 1) + (data.operations?.gmailConfigured ? 0 : 1);
+  $("systemSummary").textContent = problems ? `${problems} issue${problems === 1 ? "" : "s"}` : "All OK";
+  $("systemPanel").classList.toggle("has-issues", problems > 0);
+}
+
 async function load() {
   const period = $("period").value;
   let from, to;
@@ -42,12 +70,19 @@ async function load() {
   else if (period === "custom") [from, to] = [$("fromDate").value, $("toDate").value];
   else [from, to] = dateRange(Number(period));
   if (!from || !to) return;
-  const response = await fetch(`/api/dashboard?from=${from}&to=${to}`);
-  data = await response.json();
-  if (!response.ok) return showNotice(data.error, true);
+  let response;
+  try {
+    response = await fetch(`/api/dashboard?from=${from}&to=${to}`);
+    const body = await response.json();
+    if (!response.ok) return showNotice(body.error || "Could not load data.", true, true);
+    data = body;
+  } catch (error) {
+    return showNotice("Can't reach the dashboard server. Check the Pi is online.", true, true);
+  }
   const operators = new Set(data.days.flatMap(day => day.services.map(service => service.operatorName)));
   const selected = $("operator").value;
   $("operator").innerHTML = '<option value="">All</option>' + [...operators].sort().map(value => `<option ${value === selected ? "selected" : ""}>${esc(value)}</option>`).join("");
+  renderTodo();
   renderHealth();
   renderOperatorHealth();
   renderClaimPipeline();
@@ -132,11 +167,15 @@ function renderRecommendations() {
         continue;
       }
       const claim = claimDisplay(item);
-      const assessmentLabel = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "✓ Claimed" : "Decide";
+      const assessmentLabel = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "Marked claimed" : "Decide";
       const label = claim.label || assessmentLabel;
       const detail = item.effectiveDelayMinutes == null ? label : `${item.effectiveDelayMinutes} min · ${label}`;
       const preference = item.preferredClaimedTime ? " · claimed time" : "";
-      html += `<button class="recommend-row ${item.status} claim-state-${claim.state}" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span>${claim.badge}</button>`;
+      const left = deadlineText(day.date);
+      const urgent = daysLeft(day.date) <= 5 ? " urgent" : "";
+      const canClaim = ["POTENTIAL", "NEEDS_REVIEW"].includes(item.status) && !item.claimLifecycle && !item.claimSubmission;
+      const quick = canClaim ? `<button class="quick-claim" onclick="quickClaim(this, '${encodeURIComponent(item.serviceId)}')">Claim</button>` : "";
+      html += `<div class="recommend-row ${item.status} claim-state-${claim.state}"><button class="row-main" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span>${claim.badge}<small class="deadline${urgent}">${left}</small></button>${quick}</div>`;
     }
     html += "</div></article>";
   }
@@ -249,6 +288,19 @@ function claimDeadline(serviceDate) {
   return `${dayLabel(isoDate(deadline.toISOString()))} · ${remaining >= 0 ? `${remaining} days left` : `${Math.abs(remaining)} days overdue`}`;
 }
 
+async function quickClaim(button, encodedId) {
+  button.disabled = true; button.textContent = "Queuing…";
+  try {
+    const response = await fetch(`/api/services/${encodedId}/submission`, {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
+    const result = await response.json();
+    showNotice(response.ok ? result.message || "Claim queued." : result.error, !response.ok);
+    if (response.ok) await load(); else { button.disabled = false; button.textContent = "Claim"; }
+  } catch (error) {
+    showNotice("Request failed. Check the connection and try again.", true);
+    button.disabled = false; button.textContent = "Claim";
+  }
+}
+
 async function postAction(url, success) {
   const response = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
   const result = await response.json(); showNotice(response.ok ? result.message || success : result.error, !response.ok);
@@ -285,7 +337,14 @@ async function notClaimable(encodedId, undo) {
   if (response.ok) { $("serviceDialog").close(); await load(); }
 }
 
-function showNotice(message, error = false) { const notice = $("notice"); notice.hidden = false; notice.textContent = message; notice.style.background = error ? "#fee2e2" : "#e7f1ed"; }
+let noticeTimer = null;
+function showNotice(message, error = false, retry = false) {
+  const notice = $("notice"); notice.hidden = false; notice.textContent = message;
+  notice.classList.toggle("error", error);
+  clearTimeout(noticeTimer);
+  if (retry) { const button = document.createElement("button"); button.textContent = "Retry"; button.onclick = () => { notice.hidden = true; load(); }; notice.append(" ", button); return; }
+  if (!error) noticeTimer = setTimeout(() => { notice.hidden = true; }, 5000);
+}
 
 function latestWeekday() {
   const value = new Date();
