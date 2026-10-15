@@ -51,7 +51,8 @@ window.lnrClaim = async (p) => {
   // 5. delay length (15+ below 30 minutes, 30+ otherwise) and type Delayed
   await wait(() => document.getElementById('txtDelayLength-11'));
   document.getElementById(p.delay >= 30 ? 'txtDelayLength-12' : 'txtDelayLength-11').click();
-  document.getElementById('txtDelaytype-11').click(); await sleep(300);
+  // A cancelled train is claimed as type Cancelled; the delay band is irrelevant, so the default 15+ is used.
+  document.getElementById(p.cancelled ? 'txtDelaytype-12' : 'txtDelaytype-11').click(); await sleep(300);
   await press(/^continue$/i);
   // 6. ticket step (saved season ticket is preselected)
   await wait(() => [...document.querySelectorAll('button,a,input[type=submit]')].some(e => vis(e) && /Submit claim/i.test(e.innerText || e.value)));
