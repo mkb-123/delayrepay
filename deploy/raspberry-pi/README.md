@@ -151,6 +151,18 @@ season ticket and compensation preference. Return to the terminal and press
 Enter to save the browser profile. The worker uses those sessions and will stop
 with `NEEDS_LOGIN` when one expires; it never stores account passwords in Git.
 
+If the Pi has no attached desktop, reconnect with a local port forward:
+
+```bash
+ssh -L 6080:127.0.0.1:6080 bhakta-pi@pi.local
+cd ~/delayrepay
+./scripts/linux/claim-login-vnc.sh VT
+```
+
+Open `http://localhost:6080/vnc.html` on the computer running SSH. Finish the
+login and press Enter in the terminal, then repeat with `LM`. noVNC binds only
+to `127.0.0.1` on the Pi, so it is not exposed to the home network or internet.
+
 On the first installation, the script copies the repository's existing SQLite database and catalogue into `/var/lib/delayrepay`. Later Git pulls do not overwrite live claim history.
 
 Open `http://delayrepay.local` from a device on the same network. Nginx listens

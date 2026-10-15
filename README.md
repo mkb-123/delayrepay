@@ -222,6 +222,19 @@ method are saved in each account. Close neither browser manually: return to the
 terminal and press Enter so Playwright saves the session cleanly. Sessions live
 under `/var/lib/delayrepay/browser-profiles`, outside Git.
 
+For a headless Pi that is only accessible through SSH, open a tunnel from the
+computer running SSH:
+
+```bash
+ssh -L 6080:127.0.0.1:6080 bhakta-pi@pi.local
+cd ~/delayrepay
+./scripts/linux/claim-login-vnc.sh VT
+```
+
+Open `http://localhost:6080/vnc.html`, complete the login, then return to the
+SSH terminal and press Enter. Repeat the command with `LM`. The temporary
+browser is reachable only through the SSH tunnel and closes with the command.
+
 Run the queue immediately or inspect its log with:
 
 ```bash
