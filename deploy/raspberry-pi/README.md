@@ -5,7 +5,7 @@ This setup targets Raspberry Pi OS or another Debian-based distribution with sys
 ## What it installs
 
 - `delayrepay.service`: dashboard on port 8765, restarted after failures and boots;
-- `delayrepay-collect.timer`: ten-day refresh at 19:00 Monday–Friday;
+- `delayrepay-collect.timer`: ten-day refresh at 19:00 every day;
 - `delayrepay-email.timer`: outstanding-claims email at 09:00 Saturday;
 - `delayrepay-reconcile.timer`: read-only Gmail claim reconciliation at 20:00 daily;
 - `delayrepay-backup.timer`: consistent SQLite backup at 02:30 daily, retaining 30;

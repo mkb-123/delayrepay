@@ -18,10 +18,7 @@ def _now() -> str:
 
 
 def _weekday(value: str) -> int:
-    parsed = date.fromisoformat(value)
-    if parsed.weekday() >= 5:
-        raise ValueError("Monitoring is Monday-Friday only")
-    return parsed.weekday()
+    return date.fromisoformat(value).weekday()
 
 
 def _later(clock: str, minutes: int) -> str:

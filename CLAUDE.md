@@ -73,8 +73,8 @@ A certain match needs enough information to identify one service, normally:
 
 The monitored routes and windows are:
 
-- weekday MKC → EUS, scheduled departure 06:00–08:00;
-- weekday EUS → MKC, scheduled departure 16:30–18:30.
+- daily (including Saturday and Sunday) MKC → EUS, scheduled departure 06:00–08:00;
+- daily (including Saturday and Sunday) EUS → MKC, scheduled departure 16:30–18:30.
 
 If several stored services could match, add a review event and do not update a
 journey lifecycle. Never infer a journey date or train time from the email's

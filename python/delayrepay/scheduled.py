@@ -10,17 +10,15 @@ from .workflows import collect, report_lookback
 
 
 def latest_weekday(value: date | None = None) -> date:
-    current = value or date.today()
-    while current.weekday() >= 5:
-        current -= timedelta(days=1)
-    return current
+    # Name kept for callers; Saturday and Sunday are monitored too, so this is simply the latest day.
+    return value or date.today()
 
 
 def weekday_dates(end_date: date, lookback_days: int) -> list[date]:
     if lookback_days < 1:
         raise ValueError("Lookback days must be at least 1")
     start = end_date - timedelta(days=lookback_days - 1)
-    return [start + timedelta(days=offset) for offset in range(lookback_days) if (start + timedelta(days=offset)).weekday() < 5]
+    return [start + timedelta(days=offset) for offset in range(lookback_days)]
 
 
 def run_daily_brief(root: Path, end_date: date | None = None, lookback_days: int = 10) -> dict[str, Any]:

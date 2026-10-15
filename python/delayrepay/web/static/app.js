@@ -347,9 +347,7 @@ function showNotice(message, error = false, retry = false) {
 }
 
 function latestWeekday() {
-  const value = new Date();
-  while ([0, 6].includes(value.getDay())) value.setDate(value.getDate() - 1);
-  return isoDate(value.toISOString());
+  return isoDate(new Date().toISOString());
 }
 
 function nextFriday() {
@@ -377,7 +375,7 @@ async function previewOperation(operation) {
   pendingOperation = {operation, payload};
   const count = discovery ? plan.dates.length : plan.dates.length;
   const extras = discovery ? "" : `<br>${plan.completeDates.length} already complete; ${plan.uncataloguedDates.length} uncatalogued.`;
-  $("operationPlan").innerHTML = `<strong>${count} weekday${count === 1 ? "" : "s"}</strong> · ${plan.requestCount} RTT requests.${extras}`;
+  $("operationPlan").innerHTML = `<strong>${count} day${count === 1 ? "" : "s"}</strong> · ${plan.requestCount} RTT requests.${extras}`;
   $("operationPlan").hidden = false;
   $("runOperation").textContent = `Run ${operation}`;
   $("runOperation").hidden = count === 0;

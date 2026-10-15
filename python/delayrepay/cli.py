@@ -57,6 +57,11 @@ def parser() -> argparse.ArgumentParser:
     claim_worker = commands.add_parser("claim-worker", help="Submit journeys explicitly queued in the dashboard")
     claim_worker.add_argument("--limit", type=int, default=5)
     commands.add_parser("claim-session-check", help="Check and refresh saved operator login sessions")
+    record = commands.add_parser("record-claim", help="Record a claim submitted in a browser outside the worker")
+    record.add_argument("--operator", required=True, choices=("VT", "LM"))
+    record.add_argument("--date", required=True, help="Service date (YYYY-MM-DD)")
+    record.add_argument("--time", required=True, help="Scheduled departure (HH:MM)")
+    record.add_argument("--reference", required=True, help="Operator claim reference, e.g. AWC-1234-567-890")
     return root
 
 
@@ -65,13 +70,12 @@ def lookback_dates(end_date: str, days: int, latest_per_weekday: bool = False) -
         raise ValueError("Lookback days must be at least 1")
     end = date.fromisoformat(end_date)
     dates = [end - timedelta(days=offset) for offset in range(days)]
-    weekdays = [value for value in dates if value.weekday() < 5]
     if latest_per_weekday:
         selected: dict[int, date] = {}
-        for value in weekdays:
+        for value in dates:
             selected.setdefault(value.weekday(), value)
-        weekdays = list(selected.values())
-    return sorted(value.isoformat() for value in weekdays)
+        dates = list(selected.values())
+    return sorted(value.isoformat() for value in dates)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -182,6 +186,12 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "claim-session-check":
             from .claiming.worker import check_sessions
             print(json.dumps(check_sessions(root), indent=2))
+        elif args.command == "record-claim":
+            from datetime import datetime, timezone
+            with Database(root) as database:
+                service_id = database.find_service_id(args.date, args.time, args.operator)
+                database.record_submitted_claim(service_id, args.operator, datetime.now(timezone.utc).isoformat(), args.reference)
+            print(f"Recorded {args.reference} for {service_id}.")
         return 0
     except (ValueError, RttError, CollectionBusyError) as error:
         print(f"Error: {error}", file=sys.stderr)

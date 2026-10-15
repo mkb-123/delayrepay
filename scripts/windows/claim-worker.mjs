@@ -1,20 +1,45 @@
+// Laptop claim worker: leases journeys you selected in the dashboard from the Pi
+// (through the SSH tunnel opened by run-claim-worker.ps1) and submits each one in a
+// real Chrome session using the proven page routines in scripts/browser/.
+// No AI is involved. Set DELAYREPAY_DRY_RUN=1 to stop before the final Submit.
 import { chromium } from "playwright-core";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const api = process.env.DELAYREPAY_WORKER_URL || "http://127.0.0.1:8877";
 const chrome = process.env.DELAYREPAY_CHROME_PATH || "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-const adapters = {
-  VT: { login: "https://delayrepay.avantiwestcoast.co.uk/", claim: "https://delayrepay.avantiwestcoast.co.uk/" },
-  LM: { login: "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=login.login", claim: "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=myclaims.add" },
+const dryRun = process.env.DELAYREPAY_DRY_RUN === "1";
+const headless = process.env.DELAYREPAY_HEADLESS === "1"; // tests only: real runs stay headed for reCAPTCHA
+const maxJobs = Number(process.env.DELAYREPAY_MAX_JOBS || 10);
+const browserDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "browser");
+const stations = {
+  MKC: { query: "Milton Keynes", name: "MILTON KEYNES CENTRAL" },
+  EUS: { query: "Euston", name: "LONDON EUSTON" },
 };
-const labels = {
-  date: [/date.*journey/i, /travel date/i, /departure date/i],
-  origin: [/^from$/i, /origin/i, /departure station/i],
-  destination: [/^to$/i, /destination/i, /arrival station/i],
-  departure: [/scheduled departure/i, /departure time/i],
-  arrival: [/actual arrival/i, /arrival time/i],
+const adapters = {
+  LM: {
+    script: "lnr-claim-form.js", fn: "lnrClaim", reference: /LNR\/DR\/\d+\/[A-Z0-9]+/,
+    entry: "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=myclaims.add",
+    // Logged out, the claim page still loads (as a guest form), so look for the account banner.
+    loggedIn: async page => /logged in as/i.test(await page.locator("body").innerText()),
+    confirmed: /submitted successfully/i,
+  },
+  VT: {
+    script: "avanti-claim-form.js", fn: "awcClaim", reference: /AWC-[\d-]+/,
+    entry: "https://delayrepay.avantiwestcoast.co.uk/en/",
+    // Require positive evidence: the signed-in landing page is titled "Account Summary".
+    loggedIn: async page => {
+      for (let i = 0; i < 20; i++) {
+        if (/\/login/i.test(page.url())) return false;
+        if (/Account Summary/i.test(await page.title())) return true;
+        await page.waitForTimeout(500);
+      }
+      return false;
+    },
+    confirmed: /claim has been submitted/i,
+  },
 };
 
 async function post(route, body = {}) {
@@ -22,64 +47,97 @@ async function post(route, body = {}) {
   if (!response.ok) throw new Error(`${route}: ${response.status} ${await response.text()}`);
   return response.json();
 }
-async function fill(page, patterns, value) {
-  for (const pattern of patterns) {
-    const field = page.getByLabel(pattern).first();
-    if (await field.count() && await field.isVisible()) {
-      try { await field.fill(value); return true; } catch {}
-    }
-  }
-  return false;
-}
 async function screenshot(page) { return (await page.screenshot({ fullPage: true })).toString("base64"); }
+const contexts = new Map();
+async function contextFor(code) {
+  if (contexts.has(code)) return contexts.get(code);
+  const profile = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "DelayRepay", "browser-profiles", code.toLowerCase());
+  await fs.mkdir(profile, { recursive: true });
+  const context = await chromium.launchPersistentContext(profile, {
+    executablePath: chrome, headless, args: headless ? [] : ["--start-minimized"], viewport: { width: 1100, height: 900 },
+  });
+  contexts.set(code, context);
+  return context;
+}
+
 async function processJob(job) {
   const adapter = adapters[job.operatorCode];
-  if (!adapter) throw new Error(`Unsupported operator ${job.operatorCode}`);
-  const profile = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "DelayRepay", "browser-profiles", job.operatorCode.toLowerCase());
-  await fs.mkdir(profile, { recursive: true });
-  const context = await chromium.launchPersistentContext(profile, { executablePath: chrome, headless: true });
+  if (!adapter) { await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_ATTENTION", error: `Unsupported operator ${job.operatorCode}` }); return; }
+  const context = await contextFor(job.operatorCode);
   const page = context.pages()[0] || await context.newPage();
+  let submitStarted = false;
   try {
-    await page.goto(adapter.login, { waitUntil: "domcontentloaded", timeout: 60000 });
-    if (await page.locator('input[type="password"]').count() || await page.getByText(/complete the recaptcha/i).count()) {
-      await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_LOGIN", error: `Log in to ${job.operatorCode} with claim-login.ps1.` }); return;
+    await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.waitForTimeout(2500);
+    if (!await adapter.loggedIn(page)) {
+      await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_LOGIN", error: `Log in to ${job.operatorCode} with claim-login.ps1.` });
+      return;
     }
-    if (adapter.claim !== adapter.login) await page.goto(adapter.claim, { waitUntil: "domcontentloaded", timeout: 60000 });
     const s = job.service;
-    let filled = 0;
-    filled += await fill(page, labels.date, s.serviceDate);
-    filled += await fill(page, labels.origin, s.origin === "MKC" ? "Milton Keynes Central" : "London Euston");
-    filled += await fill(page, labels.destination, s.destination === "EUS" ? "London Euston" : "Milton Keynes Central");
-    filled += await fill(page, labels.departure, s.scheduledDeparture.slice(11, 16));
-    const arrival = s.actualArrival || s.scheduledArrival;
-    if (arrival) filled += await fill(page, labels.arrival, arrival.slice(11, 16));
-    if (filled < 3) throw new Error("The operator claim form fields could not be identified.");
-    for (let step = 0; step < 6; step++) {
-      const submit = page.getByRole("button", { name: /submit( claim)?$/i }).first();
-      if (await submit.count() && await submit.isVisible()) {
-        if (job.mode === "CALIBRATE") {
-          await post("/api/private-worker/result", { serviceId: job.serviceId, state: "CALIBRATION_READY", lastStep: "Final confirmation", screenshotBase64: await screenshot(page) }); return;
-        }
-        await submit.click(); await page.waitForLoadState("domcontentloaded"); break;
-      }
-      const next = page.getByRole("button", { name: /continue|next/i }).first();
-      if (!await next.count() || !await next.isVisible()) throw new Error("The claim form needs information that could not be completed automatically.");
-      await next.click(); await page.waitForLoadState("domcontentloaded");
+    const from = stations[s.origin], to = stations[s.destination];
+    if (!from || !to) throw new Error(`Unknown station in ${s.origin} to ${s.destination}.`);
+    await page.evaluate(await fs.readFile(path.join(browserDir, adapter.script), "utf8"));
+    const params = {
+      date: s.serviceDate, time: s.scheduledDeparture.slice(11, 16),
+      fromQuery: from.query, fromName: from.name, toQuery: to.query, toName: to.name,
+      delay: s.rawDelayMinutes ?? 15, submit: false,
+    };
+    // Fill everything first. The final click is made separately so a reload cannot hide the outcome.
+    const prepared = await page.evaluate(([fn, p]) => window[fn](p), [adapter.fn, params]);
+    if (!prepared?.ok) throw new Error(prepared?.needs || "The claim form could not be filled in.");
+    if (dryRun) {
+      await post("/api/private-worker/result", { serviceId: job.serviceId, state: "CALIBRATION_READY", lastStep: "Dry run: stopped before Submit", screenshotBase64: await screenshot(page) });
+      return;
     }
+    submitStarted = true;
+    await page.getByRole("button", { name: /Submit claim/i }).or(page.getByRole("link", { name: /Submit claim/i })).first().click();
+    await page.waitForFunction(re => new RegExp(re, "i").test(document.body.innerText), adapter.confirmed.source, { timeout: 45000 });
     const body = await page.locator("body").innerText();
-    const reference = body.match(/(?:claim|reference)(?: number| ref(?:erence)?)?\s*[:#]?\s*([A-Z]{2,5}[-/][A-Z0-9/-]{5,})/i)?.[1] || null;
-    if (!reference && !/claim (?:has been |was )?(?:submitted|received)|thank you.*claim/is.test(body)) throw new Error("The portal did not show submission confirmation.");
+    const reference = body.match(adapter.reference)?.[0] || null;
     await post("/api/private-worker/result", { serviceId: job.serviceId, state: "SUBMITTED", reference });
+    console.log(`  submitted ${reference || "(no reference shown)"}`);
   } catch (error) {
-    await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_ATTENTION", error: error.message, screenshotBase64: await screenshot(page).catch(() => null) });
-  } finally { await context.close(); }
+    const note = submitStarted ? " The Submit button was pressed, so check the operator's claims list before retrying." : "";
+    await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_ATTENTION", error: error.message + note, screenshotBase64: await screenshot(page).catch(() => null) });
+    console.log(`  needs attention: ${error.message}${note}`);
+  }
+}
+
+// Visit each operator once a day with its saved profile. Activity extends the portal's
+// idle timeout, and an expired session is reported to the dashboard straight away instead
+// of surfacing only when a claim fails.
+async function keepAlive() {
+  const base = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "DelayRepay");
+  const stateFile = path.join(base, "keepalive.json");
+  let last = {};
+  try { last = JSON.parse(await fs.readFile(stateFile, "utf8")); } catch {}
+  for (const [code, adapter] of Object.entries(adapters)) {
+    if (Date.now() - (last[code] || 0) < 20 * 3600 * 1000) continue;
+    try { await fs.access(path.join(base, "browser-profiles", code.toLowerCase())); } catch { continue; }
+    try {
+      const page = (await contextFor(code)).pages()[0] || await (await contextFor(code)).newPage();
+      await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await page.waitForTimeout(2500);
+      const ok = await adapter.loggedIn(page);
+      await post("/api/private-worker/session", { operatorCode: code, status: ok ? "LOGIN_OK" : "LOGIN_NEEDED", explanation: ok ? "Daily keep-alive visit succeeded." : "Session expired. Run claim-login.ps1." });
+      last[code] = Date.now();
+      console.log(`Keep-alive ${code}: ${ok ? "signed in" : "SIGNED OUT, run claim-login.ps1 -Operator " + code}`);
+    } catch (error) { console.log(`Keep-alive ${code} failed: ${error.message}`); }
+  }
+  await fs.mkdir(base, { recursive: true });
+  await fs.writeFile(stateFile, JSON.stringify(last));
 }
 
 let handled = 0;
-for (let i = 0; i < 5; i++) {
-  const { job } = await post("/api/private-worker/next");
-  if (!job) break;
-  console.log(`Processing ${job.operatorCode} ${job.service.serviceDate} ${job.service.scheduledDeparture.slice(11, 16)} (${job.mode})`);
-  await processJob(job); handled++;
+try {
+  for (let i = 0; i < maxJobs; i++) {
+    const { job } = await post("/api/private-worker/next");
+    if (!job) break;
+    console.log(`Processing ${job.operatorCode} ${job.service.serviceDate} ${job.service.scheduledDeparture.slice(11, 16)}${dryRun ? " (dry run)" : ""}`);
+    await processJob(job); handled++;
+  }
+  await keepAlive();
+} finally {
+  for (const context of contexts.values()) await context.close().catch(() => {});
 }
 console.log(handled ? `Processed ${handled} claim job(s).` : "No queued claim jobs.");

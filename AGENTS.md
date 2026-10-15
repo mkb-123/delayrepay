@@ -6,7 +6,7 @@ the Python, Flask, and SQLite implementation under `python/delayrepay`.
 
 ## Product rules
 
-- Monitor direct weekday MKC to EUS services scheduled from 06:00 to 08:00
+- Monitor direct daily (Saturday and Sunday included) MKC to EUS services scheduled from 06:00 to 08:00
   and EUS to MKC services scheduled from 16:30 to 18:30.
 - Ignore services whose scheduled journey is longer than 60 minutes.
 - The user's ticket is valid on any permitted operator, but an alternative

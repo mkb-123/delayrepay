@@ -190,6 +190,16 @@ class Database:
         ).fetchone()
         return json.loads(row["payload_json"]) if row else None
 
+    def find_service_id(self, service_date: str, departure_time: str, operator_code: str) -> str:
+        """Resolve one monitored service from what a portal shows: date, scheduled HH:MM, operator."""
+        rows = self.connection.execute(
+            "SELECT service_id FROM services WHERE service_date=? AND operator_code=? AND substr(scheduled_departure, 12, 5)=?",
+            (service_date, operator_code, departure_time),
+        ).fetchall()
+        if len(rows) != 1:
+            raise ValueError(f"Expected one {operator_code} service on {service_date} at {departure_time}, found {len(rows)}.")
+        return rows[0]["service_id"]
+
     def services_between(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(
             "SELECT payload_json FROM services WHERE service_date BETWEEN ? AND ? ORDER BY service_date, scheduled_departure",

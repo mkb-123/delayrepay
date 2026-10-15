@@ -189,7 +189,7 @@ def create_app(root: Path | str | None = None) -> Flask:
         payload = request.get_json() or {}
         plan = discovery_plan(payload.get("endDate", date.today().isoformat()), int(payload.get("days", 5)), payload.get("direction", "ALL"))
         if not plan["dates"]:
-            return jsonify({"status": "complete", "message": "No weekdays in this range.", "plan": plan})
+            return jsonify({"status": "complete", "message": "No dates in this range.", "plan": plan})
         return _start_job(data_root, "discover", plan)
 
     @app.get("/api/collection-plan")
@@ -292,7 +292,7 @@ def create_app(root: Path | str | None = None) -> Flask:
     @app.post("/api/claim-worker/run")
     def run_worker_now():
         _require_same_origin()
-        return jsonify({"status": "WAITING", "message": "The claim is queued. Start the private worker on the Windows laptop."})
+        return jsonify({"status": "WAITING", "message": "Queued. The laptop worker picks it up within about 15 minutes while the laptop is on and signed in."})
 
     @app.post("/api/operator-sessions/check")
     def check_operator_sessions():
@@ -343,6 +343,17 @@ def create_app(root: Path | str | None = None) -> Flask:
             elif state in {"CALIBRATION_READY", "SUBMITTED"}:
                 database.set_operator_session(submission["operator_code"], "LOGIN_OK", _now(), "Laptop browser session opened successfully.")
         return jsonify({"status": state})
+
+    @app.post("/api/private-worker/session")
+    def private_worker_session():
+        _require_loopback_worker()
+        payload = request.get_json() or {}
+        code, status = payload.get("operatorCode", ""), payload.get("status", "")
+        if code not in {"VT", "LM"} or status not in {"LOGIN_OK", "LOGIN_NEEDED"}:
+            raise ValueError("Unsupported operator session update.")
+        with Database(data_root) as database:
+            database.set_operator_session(code, status, _now(), payload.get("explanation") or "Laptop session check.")
+        return jsonify({"status": status})
 
     @app.get("/api/claim-screenshots/<path:filename>")
     def claim_screenshot(filename: str):

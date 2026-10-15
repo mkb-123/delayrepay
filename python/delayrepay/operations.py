@@ -13,7 +13,7 @@ def weekday_dates(end_date: str, days: int) -> list[str]:
         raise ValueError("Lookback days must be between 1 and 90")
     end = date.fromisoformat(end_date)
     start = end - timedelta(days=days - 1)
-    return [(start + timedelta(days=offset)).isoformat() for offset in range(days) if (start + timedelta(days=offset)).weekday() < 5]
+    return [(start + timedelta(days=offset)).isoformat() for offset in range(days)]
 
 
 def discovery_plan(end_date: str, days: int, direction: str) -> dict[str, Any]:

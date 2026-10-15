@@ -76,7 +76,7 @@ sudo tee /etc/systemd/system/delayrepay-collect.timer >/dev/null <<'EOF'
 Description=Weekday Delay Repay collection schedule
 
 [Timer]
-OnCalendar=Mon..Fri 19:00
+OnCalendar=*-*-* 19:00
 Persistent=true
 RandomizedDelaySec=2m
 
