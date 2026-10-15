@@ -22,6 +22,12 @@ function submissionBadge(submission) {
   const label = submissionLabels[submission.state] || submission.state;
   return `<span class="claim-submission submission-${esc(submission.state)}">${esc(label)}</span>`;
 }
+function claimDisplay(assessment) {
+  if (assessment.claimLifecycle) return {state: assessment.claimLifecycle.status, badge: lifecycleBadge(assessment.claimLifecycle)};
+  if (assessment.claimSubmission) return {state: assessment.claimSubmission.state, badge: submissionBadge(assessment.claimSubmission)};
+  if (assessment.status === "CLAIMED") return {state: "MARKED_CLAIMED", badge: '<span class="claim-lifecycle lifecycle-MARKED_CLAIMED">Marked claimed</span>'};
+  return {state: assessment.status, badge: ""};
+}
 
 async function load() {
   const period = $("period").value;
@@ -122,7 +128,8 @@ function renderRecommendations() {
       const label = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "✓ Claimed" : "Decide";
       const detail = item.effectiveDelayMinutes == null ? label : `${item.effectiveDelayMinutes} min · ${label}`;
       const preference = item.preferredClaimedTime ? " · claimed time" : "";
-      html += `<button class="recommend-row ${item.status}" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span>${lifecycleBadge(item.claimLifecycle)}</button>`;
+      const claim = claimDisplay(item);
+      html += `<button class="recommend-row ${item.status} claim-state-${claim.state}" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span>${claim.badge}</button>`;
     }
     html += "</div></article>";
   }

@@ -58,10 +58,16 @@ select, input { width: 100%; display: block; margin-top: 3px; border: 1px solid 
 .recommend-day > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .recommend-row { display: flex; flex-direction: column; align-items: flex-start; min-height: 54px; color: #26312c; background: white; border: 1px solid #dce2de; text-align: left; padding: 8px 10px; }
 .recommend-row strong { font-size: .78rem; }.recommend-row span { font-size: .68rem; margin-top: 3px; }
-.recommend-row .claim-lifecycle { margin-top: 6px; }
+.recommend-row .claim-lifecycle, .recommend-row .claim-submission { margin-top: 6px; }
 .recommend-row.POTENTIAL { background: #fff0bd; border-color: #dfb833; }
 .recommend-row.NEEDS_REVIEW { background: #f7e7c2; border-color: #cf9940; }
 .recommend-row.CLAIMED { background: #d9f1e2; border-color: #6eb58a; }
+.recommend-row.claim-state-QUEUED, .recommend-row.claim-state-RETRY { background: #eeeaff; border-color: #8b7bd8; box-shadow: inset 4px 0 #6b5cc4; }
+.recommend-row.claim-state-PROCESSING { background: #e9e7ff; border-color: #7668ca; box-shadow: inset 4px 0 #5848b0; }
+.recommend-row.claim-state-CALIBRATION_READY, .recommend-row.claim-state-SUBMITTED { background: #dbeafe; border-color: #60a5fa; box-shadow: inset 4px 0 #2563eb; }
+.recommend-row.claim-state-APPROVED, .recommend-row.claim-state-PAID, .recommend-row.claim-state-MARKED_CLAIMED { background: #dcfce7; border-color: #4ade80; box-shadow: inset 4px 0 #168354; }
+.recommend-row.claim-state-NEEDS_LOGIN, .recommend-row.claim-state-NEEDS_ATTENTION, .recommend-row.claim-state-NEEDS_REVIEW { background: #fff1d9; border-color: #e0a443; box-shadow: inset 4px 0 #c17822; }
+.recommend-row.claim-state-REJECTED { background: #fee2e2; border-color: #f87171; box-shadow: inset 4px 0 #b91c1c; }
 .recommend-row.no-action { color: #78817d; background: #f0f2f1; justify-content: center; }
 
 .grid-section { margin-top: 18px; }
