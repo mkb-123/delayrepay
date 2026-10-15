@@ -40,21 +40,21 @@ git pull --ff-only
 new_head="$(git rev-parse --short HEAD)"
 echo "Code:     $old_head -> $new_head"
 
-# 3. Code-only updates need just the venv refreshed and one service restart.
-#    The full installer (apt, systemd units, nginx) runs only when deployment
-#    files changed or --full is given.
-if [[ "${1:-}" == "--full" ]] || ! git diff --quiet "$old_head" "$new_head" -- deploy scripts/linux; then
-  echo "Deployment files changed (or --full): running install.sh"
+# 3. Code-only updates need no root: refresh the venv, then stop the dashboard's own process (it
+#    runs as this user). systemd restarts it on any abnormal exit (Restart=on-failure or always),
+#    so SIGKILL brings it straight back on the new code. The full installer (apt, systemd units,
+#    nginx; needs sudo) runs only when install.sh changed or --full is given.
+if [[ "${1:-}" == "--full" ]] || ! git diff --quiet "$old_head" "$new_head" -- deploy/raspberry-pi/install.sh scripts/linux; then
+  echo "install.sh changed (or --full): running the full installer (asks for sudo)"
   "$repo_dir/deploy/raspberry-pi/install.sh"
 else
   "$repo_dir/.venv/bin/pip" install -q -e "$repo_dir"
-  # The unit runs as this user with Restart=always, so stopping its process restarts it with the new
-  # code and needs no sudo. Older units (on-failure) fall back to a sudo restart.
-  if [[ "$(systemctl show -p Restart --value delayrepay.service)" == "always" ]]; then
-    kill "$(systemctl show -p MainPID --value delayrepay.service)"
-  else
-    sudo systemctl restart delayrepay.service
-  fi
+  case "$(systemctl show -p Restart --value delayrepay.service)" in
+    always|on-failure|on-abnormal)
+      kill -KILL "$(systemctl show -p MainPID --value delayrepay.service)"
+      sleep 6 ;;
+    *) sudo systemctl restart delayrepay.service ;;
+  esac
 fi
 sleep 3
 "$repo_dir/deploy/raspberry-pi/verify.sh"

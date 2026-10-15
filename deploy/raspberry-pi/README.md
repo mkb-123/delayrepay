@@ -235,14 +235,16 @@ install, restore, update, or reboot.
 5. Disable the Codex automation named `Reconcile Delay Repay emails` only after
    the Pi reconciliation service succeeds, preventing two writers.
 
-## Password-free code updates
+## Updates without sudo
 
-`update.sh` restarts the dashboard by stopping its own process (the unit has `Restart=always`), so code-only updates need no sudo once the unit is installed. If you prefer an explicit root restart, allow just that once
-(this asks for your sudo password a single time):
+Normal updates never need root. The dashboard runs as the Pi user, so `update.sh` pulls the
+code, refreshes the virtual environment, and stops the dashboard's own process; systemd
+restarts it on the new code. Only a change to `install.sh` (apt packages, systemd units,
+Nginx) asks for sudo, and that is rare.
+
+Weekend data collection runs from the Pi user's crontab (no root), 19:00 on Saturday and
+Sunday. The weekday collection stays on the systemd timer:
 
 ```bash
-cd ~/delayrepay && sudo ./deploy/raspberry-pi/allow-restart.sh
+crontab -l   # the 'delayrepay-weekend' line
 ```
-
-After that, code-only updates run with no prompts, including from automation. A change to
-`deploy/` or `scripts/linux/` still takes the full-install path, which needs sudo.
