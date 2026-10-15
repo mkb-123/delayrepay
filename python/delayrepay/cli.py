@@ -52,11 +52,6 @@ def parser() -> argparse.ArgumentParser:
     reconcile.add_argument("--lookback-days", type=int, default=90)
     backup = commands.add_parser("backup", help="Create a consistent SQLite backup")
     backup.add_argument("--keep", type=int, default=30)
-    claim_login = commands.add_parser("claim-login", help="Open an operator portal and retain its authenticated browser session")
-    claim_login.add_argument("--operator", required=True, choices=("VT", "LM"))
-    claim_worker = commands.add_parser("claim-worker", help="Submit journeys explicitly queued in the dashboard")
-    claim_worker.add_argument("--limit", type=int, default=5)
-    commands.add_parser("claim-session-check", help="Check and refresh saved operator login sessions")
     record = commands.add_parser("record-claim", help="Record a claim submitted in a browser outside the worker")
     record.add_argument("--operator", required=True, choices=("VT", "LM"))
     record.add_argument("--date", required=True, help="Service date (YYYY-MM-DD)")
@@ -176,16 +171,6 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "backup":
             from .backup import backup_database
             print(f"Backup: {backup_database(root, args.keep)}")
-        elif args.command == "claim-login":
-            from .claiming.browser import login
-            login(root, args.operator)
-            print(f"Saved {args.operator} browser session under {root / 'browser-profiles' / args.operator.lower()}.")
-        elif args.command == "claim-worker":
-            from .claiming.worker import run
-            print(json.dumps(run(root, args.limit), indent=2))
-        elif args.command == "claim-session-check":
-            from .claiming.worker import check_sessions
-            print(json.dumps(check_sessions(root), indent=2))
         elif args.command == "record-claim":
             from datetime import datetime, timezone
             with Database(root) as database:
