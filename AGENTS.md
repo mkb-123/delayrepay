@@ -16,6 +16,17 @@ failure path say why it failed (reason and screenshot) so the next fix needs no
 exploration. Prefer one call that does a whole job over many small steps, and
 never rely on an agent to remember to update the database: scripts must do it.
 
+## Working rules for agents
+
+- Act on the queue without being asked. When claims are queued and ready, process them
+  (run the worker, or submit through the proven browser routines) before reporting.
+  Check the Pi queue first: `claim_submissions` where `state` is not `SUBMITTED`.
+- Never try to evade bot detection. Operators use reCAPTCHA and may escalate to image
+  challenges when they see automation. Do not hide automation, rotate identities, or
+  retry rapidly. A person solves CAPTCHAs; the worker shows the window, notifies, and
+  waits. Make at most one submit attempt per claim per run, and space claims apart.
+- Every claim made outside the worker must be recorded with `record-claims.ps1`.
+
 ## Product rules
 
 - Monitor direct daily (Saturday and Sunday included) MKC to EUS services scheduled from 06:00 to 08:00
