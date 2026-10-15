@@ -14,11 +14,12 @@ def assess(
     rule = RULES.get(service.get("operatorCode"))
     raw = service.get("rawDelayMinutes")
     alternatives = []
+    any_operator = bool(rule and rule.get("alternativeScope") == "ANY_OPERATOR")
     for candidate in all_services:
         if (
             candidate.get("serviceId") == service.get("serviceId")
             or candidate.get("direction") != service.get("direction")
-            or candidate.get("operatorCode") != service.get("operatorCode")
+            or (not any_operator and candidate.get("operatorCode") != service.get("operatorCode"))
         ):
             continue
         if not candidate.get("actualDeparture") or not candidate.get("actualArrival") or not service.get("scheduledDeparture"):
@@ -32,9 +33,11 @@ def assess(
             "estimatedDelayMinutes": delay, "ticketScope": "ANY_PERMITTED",
         })
     alternatives.sort(key=lambda item: item["actualArrival"])
+    measured = [item for item in alternatives if item.get("estimatedDelayMinutes") is not None]
+    best = min(measured, key=lambda item: item["estimatedDelayMinutes"]) if measured else None
     base = {
         "status": "NEEDS_REVIEW", "effectiveDelayMinutes": None, "rawDelayMinutes": raw,
-        "explanation": "", "alternativesConsidered": alternatives,
+        "explanation": "", "alternativesConsidered": alternatives, "likelyRejected": False,
         "ruleVersion": rule["ruleVersion"] if rule else "UNSUPPORTED",
         "ruleOperatorName": rule["operatorName"] if rule else None,
         "ruleSource": rule["sourceUrl"] if rule else None,
@@ -64,8 +67,23 @@ def assess(
         base["explanation"] = "Actual destination arrival is not recorded."
     elif raw < rule["minimumDelay"]:
         base.update(status="NO_CLAIM", effectiveDelayMinutes=max(0, raw), explanation=f"Destination delay was {max(0, raw)} minutes, below the {rule['minimumDelay']}-minute threshold.")
-    elif any((item.get("estimatedDelayMinutes") or 0) < raw for item in alternatives):
-        base["explanation"] = f"Train arrived {raw} minutes late, but an earlier-arriving alternative exists; confirm the train actually taken."
+    elif best and best["estimatedDelayMinutes"] < rule["minimumDelay"] and best["estimatedDelayMinutes"] < raw:
+        base.update(
+            status="NEEDS_REVIEW", effectiveDelayMinutes=max(0, best["estimatedDelayMinutes"]), likelyRejected=True,
+            explanation=(
+                f"Likely rejected: this train arrived {raw} minutes late, but the {best['actualDeparture'][11:16]} {best['operator']} "
+                f"reached {service['destination']} only {max(0, best['estimatedDelayMinutes'])} minutes after your intended arrival. "
+                f"{rule['operatorName']} measures the delay against the best alternative your ticket allows."
+            ),
+        )
+    elif best and best["estimatedDelayMinutes"] < raw:
+        base.update(
+            status="NEEDS_REVIEW", effectiveDelayMinutes=best["estimatedDelayMinutes"],
+            explanation=(
+                f"Train arrived {raw} minutes late, but the {best['actualDeparture'][11:16]} {best['operator']} reached "
+                f"{service['destination']} {best['estimatedDelayMinutes']} minutes late; the claim band may be lower. Confirm the train actually taken."
+            ),
+        )
     else:
         base.update(status="POTENTIAL", effectiveDelayMinutes=raw, explanation=f"Arrived {service['destination']} {raw} minutes late. Potential if you travelled on this service with a valid ticket.")
     return base

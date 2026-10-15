@@ -18,6 +18,26 @@ function lifecycleBadge(lifecycle, compact = false) {
   const ref = lifecycle.claim_reference ? ` <small class="claim-ref">${esc(lifecycle.claim_reference)}</small>` : "";
   return `<span class="claim-lifecycle lifecycle-${esc(lifecycle.status)}" title="${esc(detail)}">${esc(label)}${ref}</span>`;
 }
+// The rows that appear in the recommendations list and still need a decision: one train per day and
+// direction, on days not marked Done, not already claimed or queued, and not yet judged likely rejected.
+function toChoose() {
+  return (data.days || []).filter(day => !day.acknowledgedAt).flatMap(day => day.recommendations || [])
+    .filter(item => ["POTENTIAL", "NEEDS_REVIEW"].includes(item.status) && !item.claimLifecycle && !item.claimSubmission
+      && !item.likelyRejected && !/not recorded/i.test(item.explanation || ""));
+}
+// Plain-language reason and next step for a queued claim that has stopped.
+function queueReason(submission) {
+  if (!submission) return "";
+  if (isStuck(submission)) return "The laptop worker did not finish this. Press Retry.";
+  const error = submission.lastError || submission.last_error || "";
+  if (submission.state === "NEEDS_LOGIN") return "Sign in to this operator on the laptop: run claim-login.ps1, solve the CAPTCHA, then it sends by itself.";
+  if (submission.state === "NEEDS_ATTENTION") {
+    if (/no delay figure/i.test(error)) return "No timing data for this train, so the claim band is unknown. Claim by hand if you know the delay, or remove it.";
+    if (/duplicate/i.test(error)) return "Looks already claimed on the operator site. Check it, then record it or retry.";
+    return error.split(".")[0].slice(0, 120);
+  }
+  return "";
+}
 function relativeTime(iso) {
   if (!iso) return "never";
   const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
@@ -81,7 +101,7 @@ function renderTodo() {
   const login = tracking.filter(s => s.claimSubmission?.state === "NEEDS_LOGIN");
   const check = tracking.filter(s => s.claimSubmission?.state === "NEEDS_ATTENTION" || isStuck(s.claimSubmission));
   const review = data.operations?.emailReview?.length || 0;
-  const potential = data.summary.potentialClaims;
+  const potential = toChoose().length;
   const add = (kind, count, text, action) => count && items.push(`<button class="todo-item todo-${kind}" onclick="${action}"><strong>${count}</strong><span>${text}</span></button>`);
   add("claim", potential, `claim${potential === 1 ? "" : "s"} to choose`, "document.getElementById('recommendations').scrollIntoView({behavior:'smooth'})");
   add("ready", ready.length, "claim ready to approve", `showTrackedClaim('${ready[0] ? encodeURIComponent(ready[0].serviceId) : ""}')`);
@@ -151,7 +171,7 @@ function renderClaimPipeline() {
   const awaiting = services.filter(service => ["SUBMITTED", "NEEDS_REVIEW"].includes(service.claimLifecycle?.status));
   const complete = services.filter(service => ["APPROVED", "PAID", "REJECTED"].includes(service.claimLifecycle?.status));
   const badge = service => lifecycleBadge(service.claimLifecycle) || submissionBadge(service.claimSubmission) || '<span class="claim-lifecycle lifecycle-SUBMITTED">Marked claimed</span>';
-  const cards = rows => rows.map(service => `<button class="pipeline-card" onclick="showTrackedClaim('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)}</span>${badge(service)}</button>`).join("");
+  const cards = rows => rows.map(service => `<button class="pipeline-card" onclick="showTrackedClaim('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)}</span>${badge(service)}${queueReason(service.claimSubmission) ? `<small class="queue-reason">${esc(queueReason(service.claimSubmission))}</small>` : ""}</button>`).join("");
   $("claimPipeline").innerHTML = `<div class="section-heading"><h2>Claim queue</h2><div class="worker-status">${workerChip()}${sessionChips()}</div></div>${active.length ? `<div class="pipeline-grid">${cards(active)}</div>` : '<p class="empty compact">Nothing queued.</p>'}${awaiting.length ? `<details class="completed-claims" open><summary>${awaiting.length} awaiting operator</summary><div class="pipeline-grid">${cards(awaiting)}</div></details>` : ""}${complete.length ? `<details class="completed-claims"><summary>${complete.length} completed claim${complete.length === 1 ? "" : "s"}</summary><div class="pipeline-grid">${cards(complete)}</div></details>` : ""}`;
 }
 
@@ -199,7 +219,7 @@ function renderRecommendations() {
         continue;
       }
       const claim = claimDisplay(item);
-      const assessmentLabel = item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "Marked claimed" : "Decide";
+      const assessmentLabel = item.likelyRejected ? "Likely rejected" : item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "Marked claimed" : "Decide";
       const label = claim.label || assessmentLabel;
       // A journey that has already run but has no timing data cannot be claimed reliably: flag it.
       const noData = item.effectiveDelayMinutes == null && !item.claimLifecycle && Date.parse(item.scheduledDeparture) < Date.now() - 2 * 3600000;
@@ -207,9 +227,9 @@ function renderRecommendations() {
       const preference = item.preferredClaimedTime ? " · claimed time" : "";
       const left = deadlineText(day.date);
       const urgent = daysLeft(day.date) <= 5 ? " urgent" : "";
-      const canClaim = ["POTENTIAL", "NEEDS_REVIEW"].includes(item.status) && !item.claimLifecycle && !item.claimSubmission;
+      const canClaim = ["POTENTIAL", "NEEDS_REVIEW"].includes(item.status) && !item.claimLifecycle && !item.claimSubmission && !item.likelyRejected;
       const quick = canClaim ? `<button class="quick-claim" onclick="quickClaim(this, '${encodeURIComponent(item.serviceId)}')">Claim</button>` : "";
-      html += `<div class="recommend-row ${item.status} claim-state-${claim.state}"><button class="row-main" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span>${claim.badge}<small class="deadline${urgent}">${left}</small></button>${quick}</div>`;
+      html += `<div class="recommend-row ${item.status}${item.likelyRejected ? " likely-rejected" : ""} claim-state-${claim.state}"><button class="row-main" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span>${claim.badge}<small class="deadline${urgent}">${left}</small></button>${quick}</div>`;
     }
     html += "</div></article>";
   }
@@ -224,7 +244,7 @@ async function acknowledgeDay(serviceDate, undo) {
 }
 
 function render() {
-  $("potentialCount").textContent = data.summary.potentialClaims;
+  $("potentialCount").textContent = toChoose().length;
   const tracking = data.operations?.claimTracking || [];
   $("queuedCount").textContent = tracking.filter(s => ["QUEUED", "RETRY", "PROCESSING", "CALIBRATION_READY"].includes(s.claimSubmission?.state)).length;
   $("attentionCount").textContent = tracking.filter(s => ["NEEDS_LOGIN", "NEEDS_ATTENTION"].includes(s.claimSubmission?.state) || isStuck(s.claimSubmission)).length;

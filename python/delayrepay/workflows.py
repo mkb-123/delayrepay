@@ -334,6 +334,7 @@ def build_recommendations(
                 "claimUrl": row["assessment"].get("claimUrl"), "claimedAt": row["assessment"].get("claimedAt"),
                 "claimLifecycle": row["assessment"].get("claimLifecycle"),
                 "claimSubmission": row["assessment"].get("claimSubmission"),
+                "likelyRejected": bool(row["assessment"].get("likelyRejected")),
             })
         else:
             recommendations.append({"direction": direction, "status": "NO_CLAIM", "explanation": "No confidently claimable disruption."})
