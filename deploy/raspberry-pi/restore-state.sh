@@ -33,6 +33,11 @@ if [[ -n "$state_dir" ]]; then
       sudo install -m 600 -o "$run_user" -g "$run_group" "$secret" "$data_dir/secrets/"
     done
   fi
+  if [[ -f "$state_dir/browser-profiles.tar.gz" ]]; then
+    sudo tar -C "$data_dir" -xzf "$state_dir/browser-profiles.tar.gz"
+    sudo chown -R "$run_user:$run_group" "$data_dir/browser-profiles"
+    sudo chmod -R go-rwx "$data_dir/browser-profiles"
+  fi
 fi
 
 sudo systemctl start delayrepay.service

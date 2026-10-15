@@ -52,6 +52,10 @@ def parser() -> argparse.ArgumentParser:
     reconcile.add_argument("--lookback-days", type=int, default=90)
     backup = commands.add_parser("backup", help="Create a consistent SQLite backup")
     backup.add_argument("--keep", type=int, default=30)
+    claim_login = commands.add_parser("claim-login", help="Open an operator portal and retain its authenticated browser session")
+    claim_login.add_argument("--operator", required=True, choices=("VT", "LM"))
+    claim_worker = commands.add_parser("claim-worker", help="Submit journeys explicitly queued in the dashboard")
+    claim_worker.add_argument("--limit", type=int, default=5)
     return root
 
 
@@ -166,6 +170,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "backup":
             from .backup import backup_database
             print(f"Backup: {backup_database(root, args.keep)}")
+        elif args.command == "claim-login":
+            from .claiming.browser import login
+            login(root, args.operator)
+            print(f"Saved {args.operator} browser session under {root / 'browser-profiles' / args.operator.lower()}.")
+        elif args.command == "claim-worker":
+            from .claiming.worker import run
+            print(json.dumps(run(root, args.limit), indent=2))
         return 0
     except (ValueError, RttError, CollectionBusyError) as error:
         print(f"Error: {error}", file=sys.stderr)

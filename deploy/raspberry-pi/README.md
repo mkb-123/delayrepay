@@ -8,6 +8,7 @@ This setup targets Raspberry Pi OS or another Debian-based distribution with sys
 - `delayrepay-collect.timer`: ten-day refresh at 19:00 Monday–Friday;
 - `delayrepay-email.timer`: outstanding-claims email at 09:00 Saturday;
 - `delayrepay-reconcile.timer`: read-only Gmail claim reconciliation at 20:00 daily;
+- `delayrepay-claim-worker.timer`: checks every five minutes for journeys explicitly selected in the dashboard;
 - `delayrepay-backup.timer`: consistent SQLite backup at 02:30 daily, retaining 30;
 - Avahi/mDNS access at `http://delayrepay.local` through Nginx;
 - runtime SQLite and catalogue files in `/var/lib/delayrepay`, separate from Git.
@@ -25,6 +26,7 @@ preserved in a private recovery bundle containing:
 - the discovered service catalogue;
 - `.env` and RTT/email settings;
 - Gmail OAuth client and token files, when configured.
+- authenticated operator browser profiles used to access saved season tickets.
 
 Store that bundle on encrypted removable storage or a private NAS. This
 repository only rebuilds Delay Repay. Home Assistant and any other software on
@@ -134,6 +136,21 @@ Set `GMAIL_OAUTH_CLIENT_FILE` and `GMAIL_OAUTH_TOKEN_FILE` in the Pi `.env` to
 the `/var/lib/delayrepay/secrets/` paths shown in the example. The reconciliation
 scope is read-only and does not change Gmail messages.
 
+### Operator account authorization
+
+From the Raspberry Pi desktop, or a VNC session with a graphical display, run:
+
+```bash
+cd ~/delayrepay
+.venv/bin/delayrepay claim-login --operator VT
+.venv/bin/delayrepay claim-login --operator LM
+```
+
+Log into each Delay Repay account, complete any CAPTCHA, and confirm the saved
+season ticket and compensation preference. Return to the terminal and press
+Enter to save the browser profile. The worker uses those sessions and will stop
+with `NEEDS_LOGIN` when one expires; it never stores account passwords in Git.
+
 On the first installation, the script copies the repository's existing SQLite database and catalogue into `/var/lib/delayrepay`. Later Git pulls do not overwrite live claim history.
 
 Open `http://delayrepay.local` from a device on the same network. Nginx listens
@@ -155,10 +172,12 @@ systemctl list-timers 'delayrepay-*'
 sudo systemctl start delayrepay-collect.service
 sudo systemctl start delayrepay-email.service
 sudo systemctl start delayrepay-reconcile.service
+sudo systemctl start delayrepay-claim-worker.service
 sudo systemctl start delayrepay-backup.service
 journalctl -u delayrepay.service -n 100
 journalctl -u delayrepay-collect.service -n 100
 journalctl -u delayrepay-reconcile.service -n 100
+journalctl -u delayrepay-claim-worker.service -n 100
 ```
 
 Backups are written safely with SQLite's backup API to

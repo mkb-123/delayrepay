@@ -90,7 +90,9 @@ Use **Update data** to preview and run either operation from the dashboard:
 
 Both run in the background with visible progress and share the same collection lock and RTT rate-limit backoff as the CLI.
 
-`Mark as claimed` is an acknowledgement only. It updates SQLite and does not submit anything to a train operator. Claim and undo changes persist after restart.
+`Claim this train` adds that exact journey to the Raspberry Pi submission queue. The browser worker checks the queue every five minutes, uses the saved operator-account session and saved season ticket, and records the claim reference when the portal confirms submission. `Mark as already claimed` remains a manual acknowledgement for claims submitted elsewhere.
+
+The queue is deliberately journey-specific: select only the train actually travelled on. If an operator login expires, CAPTCHA appears, or the form changes, the item becomes **Login needed** or **Check needed** instead of being guessed or submitted twice.
 
 ## Data workflow
 
@@ -203,6 +205,33 @@ collection, daily Gmail claim reconciliation, daily SQLite backups, Saturday
 email, mDNS, and SQLite migration, follow
 [deploy/raspberry-pi/README.md](deploy/raspberry-pi/README.md). The home-network
 dashboard address is `http://delayrepay.local`.
+
+### Enable automatic claims
+
+The Pi installer installs Chromium, Playwright, and a claim-worker timer. Log in
+to each operator once from a graphical Pi session or VNC terminal:
+
+```bash
+cd ~/delayrepay
+.venv/bin/delayrepay claim-login --operator VT
+.venv/bin/delayrepay claim-login --operator LM
+```
+
+Complete any CAPTCHA and confirm that the season ticket and preferred payment
+method are saved in each account. Close neither browser manually: return to the
+terminal and press Enter so Playwright saves the session cleanly. Sessions live
+under `/var/lib/delayrepay/browser-profiles`, outside Git.
+
+Run the queue immediately or inspect its log with:
+
+```bash
+sudo systemctl start delayrepay-claim-worker.service
+journalctl -u delayrepay-claim-worker.service -n 100
+```
+
+The worker never searches for claims itself. It processes only journeys marked
+**Claim this train** in the dashboard. A CAPTCHA or expired session requires
+running `claim-login` again.
 
 ## Claims and rules
 

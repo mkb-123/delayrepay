@@ -22,3 +22,5 @@ data-store/*.sqlite-wal
 data-store/*.sqlite-shm
 data-store/output/
 data-store/*.lock
+data-store/browser-profiles/
+data-store/claim-screenshots/

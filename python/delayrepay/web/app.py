@@ -233,6 +233,31 @@ def create_app(root: Path | str | None = None) -> Flask:
         set_claim(data_root, service["serviceDate"], service_id, False)
         return jsonify({"status": "CLAIMED", "message": "Acknowledged only; no claim was submitted."})
 
+    @app.post("/api/services/<path:service_id>/submission")
+    def queue_submission(service_id: str):
+        _require_same_origin()
+        with Database(data_root) as database:
+            service = database.service_by_id(service_id)
+            if not service:
+                return jsonify({"error": "Service not found"}), 404
+            report = build_report_data(database, service["serviceDate"], False, persist=False)
+            row = next(item for item in report["services"] if item["serviceId"] == service_id)
+            if row["assessment"]["status"] not in {"POTENTIAL", "NEEDS_REVIEW", "CLAIMED"}:
+                raise ValueError("Only a claimable or reviewed disruption can be queued.")
+            if database.claim_lifecycle(service_id) and database.claim_lifecycle(service_id)["status"] in {"SUBMITTED", "APPROVED", "PAID"}:
+                raise ValueError("This journey already has an operator claim.")
+            database.queue_claim_submission(service_id, service["operatorCode"], _now())
+        return jsonify({"status": "QUEUED", "message": "Queued for automatic submission on the Raspberry Pi."})
+
+    @app.delete("/api/services/<path:service_id>/submission")
+    def cancel_submission(service_id: str):
+        _require_same_origin()
+        with Database(data_root) as database:
+            if not database.service_by_id(service_id):
+                return jsonify({"error": "Service not found"}), 404
+            database.cancel_claim_submission(service_id)
+        return jsonify({"status": "CANCELLED", "message": "Removed from the automatic claim queue."})
+
     @app.delete("/api/services/<path:service_id>/claim")
     def undo_claim(service_id: str):
         _require_same_origin()

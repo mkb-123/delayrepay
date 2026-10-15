@@ -24,6 +24,10 @@ for secret in /var/lib/delayrepay/secrets/*.json; do
   [[ -e "$secret" ]] || continue
   install -m 600 "$secret" "$bundle/secrets/"
 done
+if [[ -d /var/lib/delayrepay/browser-profiles ]]; then
+  tar -C /var/lib/delayrepay -czf "$bundle/browser-profiles.tar.gz" browser-profiles
+  chmod 600 "$bundle/browser-profiles.tar.gz"
+fi
 
 cat >"$bundle/README.txt" <<EOF
 Private Delay Repay recovery state created $stamp.

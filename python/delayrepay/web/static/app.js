@@ -10,11 +10,17 @@ function dateRange(days) { const end = new Date(); const start = new Date(end); 
 function timestamp(value) { return value ? new Intl.DateTimeFormat("en-GB", {dateStyle: "medium", timeStyle: "short"}).format(new Date(value)) : "Never"; }
 const lifecycleLabels = {SUBMITTED: "Submitted", APPROVED: "Approved", REJECTED: "Rejected", PAID: "Paid", NEEDS_REVIEW: "Email review"};
 const lifecycleCompact = {SUBMITTED: "Sent", APPROVED: "OK", REJECTED: "No", PAID: "Paid", NEEDS_REVIEW: "?"};
+const submissionLabels = {QUEUED: "Queued on Pi", PROCESSING: "Submitting", SUBMITTED: "Submitted", NEEDS_LOGIN: "Login needed", NEEDS_ATTENTION: "Check needed", RETRY: "Retry queued"};
 function lifecycleBadge(lifecycle, compact = false) {
   if (!lifecycle) return "";
   const label = (compact ? lifecycleCompact : lifecycleLabels)[lifecycle.status] || lifecycle.status;
   const detail = lifecycle.claim_reference ? `${label} · ${lifecycle.claim_reference}` : label;
   return `<span class="claim-lifecycle lifecycle-${esc(lifecycle.status)}" title="${esc(detail)}">${esc(compact ? label : detail)}</span>`;
+}
+function submissionBadge(submission) {
+  if (!submission) return "";
+  const label = submissionLabels[submission.state] || submission.state;
+  return `<span class="claim-submission submission-${esc(submission.state)}">${esc(label)}</span>`;
 }
 
 async function load() {
@@ -50,7 +56,7 @@ function renderClaimPipeline() {
   const services = data.operations?.claimTracking || [];
   const active = services.filter(service => !service.claimLifecycle || ["SUBMITTED", "APPROVED", "NEEDS_REVIEW"].includes(service.claimLifecycle.status));
   const complete = services.filter(service => ["PAID", "REJECTED"].includes(service.claimLifecycle?.status));
-  const badge = service => lifecycleBadge(service.claimLifecycle) || '<span class="claim-lifecycle lifecycle-SUBMITTED">Marked claimed</span>';
+  const badge = service => lifecycleBadge(service.claimLifecycle) || submissionBadge(service.claimSubmission) || '<span class="claim-lifecycle lifecycle-SUBMITTED">Marked claimed</span>';
   const cards = rows => rows.map(service => `<button class="pipeline-card" onclick="showTrackedClaim('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)}</span>${badge(service)}</button>`).join("");
   $("claimPipeline").innerHTML = `<div class="section-heading"><h2>Claims in progress</h2></div>${active.length ? `<div class="pipeline-grid">${cards(active)}</div>` : '<p class="empty compact">No claims awaiting an outcome.</p>'}${complete.length ? `<details class="completed-claims"><summary>${complete.length} completed claim${complete.length === 1 ? "" : "s"}</summary><div class="pipeline-grid">${cards(complete)}</div></details>` : ""}`;
 }
@@ -187,14 +193,19 @@ function showService(encodedId) {
   const a = service.assessment;
   const labels = {POTENTIAL: "Potential claim", NEEDS_REVIEW: "Decision needed", CLAIMED: "✓ Claimed", NO_CLAIM: "No claim"};
   let actions = "";
-  if (a.status === "POTENTIAL") actions += `<button onclick="claim('${encodedId}', false)">Mark as claimed</button>`;
-  if (a.status === "NEEDS_REVIEW") actions += `<button onclick="claim('${encodedId}', false)">Mark as claimed</button><button class="secondary" onclick="notClaimable('${encodedId}', false)">Not claimable</button>`;
+  const submission = a.claimSubmission;
+  const canQueue = ["POTENTIAL", "NEEDS_REVIEW", "CLAIMED"].includes(a.status) && !a.claimLifecycle && !submission;
+  if (canQueue) actions += `<button onclick="queueSubmission('${encodedId}', false)">Claim this train</button>`;
+  if (a.status === "POTENTIAL") actions += `<button class="secondary" onclick="claim('${encodedId}', false)">Mark as already claimed</button>`;
+  if (a.status === "NEEDS_REVIEW") actions += `<button class="secondary" onclick="claim('${encodedId}', false)">Mark as already claimed</button><button class="secondary" onclick="notClaimable('${encodedId}', false)">Not claimable</button>`;
   if (a.status === "CLAIMED") actions += `<button class="secondary" onclick="claim('${encodedId}', true)">Undo</button>`;
+  if (submission && !["SUBMITTED", "PROCESSING"].includes(submission.state)) actions += `<button class="secondary" onclick="queueSubmission('${encodedId}', true)">Remove from queue</button>`;
   if (a.notClaimableAt) actions += `<button class="secondary" onclick="notClaimable('${encodedId}', true)">Undo not claimable</button>`;
   if (a.claimUrl && ["POTENTIAL", "NEEDS_REVIEW", "CLAIMED"].includes(a.status)) actions += `<a href="${esc(a.claimUrl)}" target="_blank" rel="noopener">Open claim page →</a>`;
   const lifecycle = a.claimLifecycle;
   const lifecycleFacts = lifecycle ? `<dt>Operator claim</dt><dd>${lifecycleBadge(lifecycle)}${lifecycle.claim_reference ? ` <button class="copy-reference secondary" onclick="copyReference(decodeURIComponent('${encodeURIComponent(lifecycle.claim_reference)}'))">Copy reference</button>` : ""}<br>${esc(lifecycle.explanation)}</dd>` : "";
-  $("serviceDetail").innerHTML = `<p class="eyebrow">${esc(dayLabel(service.serviceDate))} · ${service.origin} → ${service.destination}</p><h2>${clock(service.scheduledDeparture)} · ${esc(service.operatorName)}</h2><span class="status ${a.status}">${labels[a.status]}</span><p class="reason">${esc(a.explanation)}</p><dl class="facts"><dt>Scheduled</dt><dd>${clock(service.scheduledDeparture)} → ${clock(service.scheduledArrival)}</dd><dt>Actual</dt><dd>${clock(service.actualDeparture)} → ${clock(service.actualArrival)}</dd><dt>Raw delay</dt><dd>${service.cancelled ? "Cancelled" : service.rawDelayMinutes == null ? "Unknown" : `${service.rawDelayMinutes} minutes`}</dd><dt>Effective delay</dt><dd>${a.effectiveDelayMinutes == null ? "Not determined" : `${a.effectiveDelayMinutes} minutes`}</dd>${lifecycleFacts}<dt>Rule</dt><dd>${esc(a.ruleVersion)}</dd></dl><div class="actions">${actions}</div>${a.ruleSource ? `<p><a href="${esc(a.ruleSource)}" target="_blank" rel="noopener">Official rule source →</a></p>` : ""}`;
+  const submissionFacts = submission ? `<dt>Automatic claim</dt><dd>${submissionBadge(submission)}${submission.claim_reference ? ` · ${esc(submission.claim_reference)}` : ""}${submission.last_error ? `<br>${esc(submission.last_error)}` : ""}</dd>` : "";
+  $("serviceDetail").innerHTML = `<p class="eyebrow">${esc(dayLabel(service.serviceDate))} · ${service.origin} → ${service.destination}</p><h2>${clock(service.scheduledDeparture)} · ${esc(service.operatorName)}</h2><span class="status ${a.status}">${labels[a.status]}</span><p class="reason">${esc(a.explanation)}</p><dl class="facts"><dt>Scheduled</dt><dd>${clock(service.scheduledDeparture)} → ${clock(service.scheduledArrival)}</dd><dt>Actual</dt><dd>${clock(service.actualDeparture)} → ${clock(service.actualArrival)}</dd><dt>Raw delay</dt><dd>${service.cancelled ? "Cancelled" : service.rawDelayMinutes == null ? "Unknown" : `${service.rawDelayMinutes} minutes`}</dd><dt>Effective delay</dt><dd>${a.effectiveDelayMinutes == null ? "Not determined" : `${a.effectiveDelayMinutes} minutes`}</dd>${submissionFacts}${lifecycleFacts}<dt>Rule</dt><dd>${esc(a.ruleVersion)}</dd></dl><div class="actions">${actions}</div>${a.ruleSource ? `<p><a href="${esc(a.ruleSource)}" target="_blank" rel="noopener">Official rule source →</a></p>` : ""}`;
   $("serviceDialog").showModal();
 }
 
@@ -207,6 +218,13 @@ async function claim(encodedId, undo) {
   const response = await fetch(`/api/services/${encodedId}/claim`, {method: undo ? "DELETE" : "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
   const result = await response.json();
   showNotice(response.ok ? result.message || "Updated." : result.error, !response.ok);
+  if (response.ok) { $("serviceDialog").close(); await load(); }
+}
+
+async function queueSubmission(encodedId, undo) {
+  const response = await fetch(`/api/services/${encodedId}/submission`, {method: undo ? "DELETE" : "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
+  const result = await response.json();
+  showNotice(response.ok ? result.message : result.error, !response.ok);
   if (response.ok) { $("serviceDialog").close(); await load(); }
 }
 

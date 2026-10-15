@@ -108,9 +108,22 @@ class Database:
                 parser_version TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS claim_email_events_service_idx ON claim_email_events(service_id);
+            CREATE TABLE IF NOT EXISTS claim_submissions (
+                service_id TEXT PRIMARY KEY REFERENCES services(service_id) ON DELETE CASCADE,
+                operator_code TEXT NOT NULL,
+                state TEXT NOT NULL,
+                queued_at TEXT NOT NULL,
+                started_at TEXT,
+                finished_at TEXT,
+                updated_at TEXT NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                claim_reference TEXT,
+                last_error TEXT
+            );
+            CREATE INDEX IF NOT EXISTS claim_submissions_state_idx ON claim_submissions(state, queued_at);
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         """)
-        self.connection.execute("PRAGMA user_version=2")
+        self.connection.execute("PRAGMA user_version=3")
         self.connection.commit()
 
     def _import_json_history(self, root: Path) -> None:
@@ -233,11 +246,15 @@ class Database:
     def claim_tracking_items(self) -> list[dict[str, Any]]:
         rows = self.connection.execute("""
             SELECT s.payload_json, c.claimed_at, l.status, l.status_at,
-                   l.operator_code, l.claim_reference, l.explanation
+                   l.operator_code, l.claim_reference, l.explanation,
+                   q.state AS submission_state, q.queued_at, q.started_at,
+                   q.finished_at, q.attempt_count, q.claim_reference AS submission_reference,
+                   q.last_error AS submission_error
             FROM services s
             LEFT JOIN claims c ON c.service_id = s.service_id
             LEFT JOIN claim_lifecycle l ON l.service_id = s.service_id
-            WHERE c.service_id IS NOT NULL OR l.service_id IS NOT NULL
+            LEFT JOIN claim_submissions q ON q.service_id = s.service_id
+            WHERE c.service_id IS NOT NULL OR l.service_id IS NOT NULL OR q.service_id IS NOT NULL
             ORDER BY s.service_date DESC, s.scheduled_departure
         """).fetchall()
         items = []
@@ -251,8 +268,96 @@ class Database:
                     "claim_reference": row["claim_reference"],
                     "explanation": row["explanation"],
                 }
-            items.append({**service, "claimedAt": row["claimed_at"], "claimLifecycle": lifecycle})
+            submission = None
+            if row["submission_state"]:
+                submission = {
+                    "state": row["submission_state"], "queuedAt": row["queued_at"],
+                    "startedAt": row["started_at"], "finishedAt": row["finished_at"],
+                    "attemptCount": row["attempt_count"], "claimReference": row["submission_reference"],
+                    "lastError": row["submission_error"],
+                }
+            items.append({**service, "claimedAt": row["claimed_at"], "claimLifecycle": lifecycle, "claimSubmission": submission})
         return items
+
+    def claim_submission(self, service_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT * FROM claim_submissions WHERE service_id=?", (service_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def queue_claim_submission(self, service_id: str, operator_code: str, queued_at: str) -> None:
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO claim_submissions(
+                    service_id, operator_code, state, queued_at, updated_at,
+                    started_at, finished_at, attempt_count, claim_reference, last_error
+                ) VALUES(?, ?, 'QUEUED', ?, ?, NULL, NULL, 0, NULL, NULL)
+                ON CONFLICT(service_id) DO UPDATE SET
+                    operator_code=excluded.operator_code, state='QUEUED', queued_at=excluded.queued_at,
+                    updated_at=excluded.updated_at, started_at=NULL, finished_at=NULL,
+                    claim_reference=NULL, last_error=NULL
+            """, (service_id, operator_code, queued_at, queued_at))
+
+    def cancel_claim_submission(self, service_id: str) -> None:
+        with self.connection:
+            row = self.connection.execute(
+                "SELECT state FROM claim_submissions WHERE service_id=?", (service_id,)
+            ).fetchone()
+            if row and row["state"] == "SUBMITTED":
+                raise ValueError("A submitted operator claim cannot be removed from the queue.")
+            self.connection.execute("DELETE FROM claim_submissions WHERE service_id=?", (service_id,))
+
+    def pending_claim_submissions(self, limit: int = 10) -> list[dict[str, Any]]:
+        rows = self.connection.execute("""
+            SELECT q.*, s.payload_json
+            FROM claim_submissions q JOIN services s ON s.service_id=q.service_id
+            WHERE q.state IN ('QUEUED', 'RETRY')
+            ORDER BY q.queued_at LIMIT ?
+        """, (limit,)).fetchall()
+        return [{**dict(row), "service": json.loads(row["payload_json"])} for row in rows]
+
+    def update_claim_submission(
+        self, service_id: str, state: str, updated_at: str, *, claim_reference: str | None = None,
+        error: str | None = None, started: bool = False, finished: bool = False,
+    ) -> None:
+        allowed = {"QUEUED", "PROCESSING", "SUBMITTED", "NEEDS_LOGIN", "NEEDS_ATTENTION", "RETRY"}
+        if state not in allowed:
+            raise ValueError(f"Unsupported submission state: {state}")
+        with self.connection:
+            self.connection.execute("""
+                UPDATE claim_submissions SET state=?, updated_at=?,
+                    started_at=CASE WHEN ? THEN ? ELSE started_at END,
+                    finished_at=CASE WHEN ? THEN ? ELSE finished_at END,
+                    attempt_count=attempt_count + CASE WHEN ? THEN 1 ELSE 0 END,
+                    claim_reference=COALESCE(?, claim_reference), last_error=?
+                WHERE service_id=?
+            """, (
+                state, updated_at, int(started), updated_at, int(finished), updated_at,
+                int(started), claim_reference, error, service_id,
+            ))
+
+    def record_submitted_claim(
+        self, service_id: str, operator_code: str, submitted_at: str, claim_reference: str | None,
+    ) -> None:
+        self.update_claim_submission(
+            service_id, "SUBMITTED", submitted_at, claim_reference=claim_reference, finished=True,
+        )
+        explanation = "Submitted automatically through the operator portal on the Raspberry Pi."
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO claim_lifecycle(
+                    service_id, status, status_at, operator_code, claim_reference, explanation, updated_at
+                ) VALUES(?, 'SUBMITTED', ?, ?, ?, ?, ?)
+                ON CONFLICT(service_id) DO UPDATE SET
+                    status='SUBMITTED', status_at=excluded.status_at,
+                    operator_code=excluded.operator_code,
+                    claim_reference=COALESCE(excluded.claim_reference, claim_lifecycle.claim_reference),
+                    explanation=excluded.explanation, updated_at=excluded.updated_at
+            """, (service_id, submitted_at, operator_code, claim_reference, explanation, submitted_at))
+            self.connection.execute("""
+                INSERT INTO claims(service_id, claimed_at) VALUES(?, ?)
+                ON CONFLICT(service_id) DO UPDATE SET claimed_at=excluded.claimed_at
+            """, (service_id, submitted_at))
 
     def claim_email_events_needing_review(self) -> list[dict[str, Any]]:
         rows = self.connection.execute("""

@@ -20,6 +20,8 @@ sudo apt-get install -y python3-venv avahi-daemon avahi-utils ca-certificates cu
 python3 -m venv "$repo_dir/.venv"
 "$repo_dir/.venv/bin/pip" install --upgrade pip
 "$repo_dir/.venv/bin/pip" install -e "$repo_dir"
+sudo "$repo_dir/.venv/bin/python" -m playwright install-deps chromium
+"$repo_dir/.venv/bin/python" -m playwright install chromium
 
 sudo install -d -o "$run_user" -g "$run_group" "$data_dir"
 sudo install -d -m 700 -o "$run_user" -g "$run_group" "$data_dir/secrets" "$data_dir/backups" "$data_dir/logs"
@@ -142,6 +144,35 @@ RandomizedDelaySec=2m
 WantedBy=timers.target
 EOF
 
+sudo tee /etc/systemd/system/delayrepay-claim-worker.service >/dev/null <<EOF
+[Unit]
+Description=Submit Delay Repay claims selected in the dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=$run_user
+Group=$run_group
+WorkingDirectory=$repo_dir
+EnvironmentFile=$repo_dir/.env
+Environment=DELAYREPAY_REPO_DIR=$repo_dir
+ExecStart=$repo_dir/.venv/bin/python -m delayrepay claim-worker
+EOF
+
+sudo tee /etc/systemd/system/delayrepay-claim-worker.timer >/dev/null <<'EOF'
+[Unit]
+Description=Check for user-selected Delay Repay claims
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+RandomizedDelaySec=30s
+
+[Install]
+WantedBy=timers.target
+EOF
+
 sudo tee /etc/systemd/system/delayrepay-backup.service >/dev/null <<EOF
 [Unit]
 Description=Back up the Delay Repay SQLite database
@@ -215,7 +246,7 @@ sudo ln -sfn /etc/nginx/sites-available/delayrepay /etc/nginx/sites-enabled/dela
 sudo nginx -t
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now delayrepay.service delayrepay-collect.timer delayrepay-email.timer delayrepay-reconcile.timer delayrepay-backup.timer delayrepay-avahi-alias.service avahi-daemon.service nginx.service
+sudo systemctl enable --now delayrepay.service delayrepay-collect.timer delayrepay-email.timer delayrepay-reconcile.timer delayrepay-claim-worker.timer delayrepay-backup.timer delayrepay-avahi-alias.service avahi-daemon.service nginx.service
 sudo systemctl restart nginx.service
 
 echo "Delay Repay installed."

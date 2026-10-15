@@ -2,6 +2,13 @@
 
 ## Priority order
 
+### Validate authenticated operator forms
+
+- Run `claim-login` for Avanti and LNR on the Pi and confirm both saved season tickets are visible.
+- Queue one real journey from each operator and inspect the first worker run.
+- Update the semantic form-field patterns if either authenticated portal uses different labels.
+- Confirm the portal reference is captured and a second worker run cannot submit the journey again.
+
 ### 1. Activate and test the Saturday email
 
 - Complete either the OAuth migration below or temporarily configure a Gmail app password.
