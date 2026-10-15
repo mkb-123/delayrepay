@@ -84,7 +84,21 @@ async function ensureLoggedIn(page, code) {
   await page.waitForTimeout(5000);
   const afterSubmit = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ");
   const hint = afterSubmit.match(/(captcha|incorrect|invalid|locked|verify|try again|not recognised)[^.]{0,80}/i)?.[0] || "";
-  if (await page.locator('iframe[src*="recaptcha/api2/bframe"]').first().isVisible().catch(() => false)) { loginNote = "CAPTCHA challenge shown after login attempt"; return false; }
+  if (/captcha/i.test(afterSubmit) || await page.locator('iframe[src*="recaptcha/api2/bframe"]').first().isVisible().catch(() => false)) {
+    // The portal wants a person. Show the window, notify, and wait for them to tick the box and log in.
+    console.log(`  ${code} login needs a CAPTCHA: complete it in the Chrome window (waiting up to 10 minutes)`);
+    await showWindow(page);
+    notify(`Solve the ${code === "LM" ? "LNR" : "Avanti"} CAPTCHA and press Login in the Chrome window.`);
+    for (let i = 0; i < 120; i++) {
+      await page.waitForTimeout(5000);
+      if (await adapter.loggedIn(page).catch(() => false)) {
+        await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+        return true;
+      }
+    }
+    loginNote = "CAPTCHA at login was not completed within 10 minutes";
+    return false;
+  }
   await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(2500);
   const ok = await adapter.loggedIn(page);
