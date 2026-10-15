@@ -3,8 +3,10 @@ if (!debugPort || !domain || !outputPath) {
   throw new Error("Usage: node export-browser-cookies.mjs PORT DOMAIN OUTPUT");
 }
 
-const version = await fetch(`http://127.0.0.1:${debugPort}/json/version`).then(response => response.json());
-const socket = new WebSocket(version.webSocketDebuggerUrl);
+const targets = await fetch(`http://127.0.0.1:${debugPort}/json/list`).then(response => response.json());
+const target = targets.find(item => item.type === "page" && item.url.includes(domain));
+if (!target) throw new Error(`No open browser page found for ${domain}.`);
+const socket = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => {
   socket.addEventListener("open", resolve, {once: true});
   socket.addEventListener("error", reject, {once: true});
