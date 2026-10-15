@@ -230,7 +230,9 @@ Run a queue check immediately with:
 
 The runner opens an SSH tunnel to Pi localhost, processes at most five queued
 claims, and closes the tunnel. The private worker API is not exposed through
-nginx or the home network.
+nginx or the home network. See
+[`docs/windows-claim-worker.md`](docs/windows-claim-worker.md) for the complete
+setup, daily use, status, and troubleshooting guide.
 
 The worker never searches for claims itself. It processes only journeys marked
 **Claim this train** in the dashboard. A CAPTCHA or expired session requires
