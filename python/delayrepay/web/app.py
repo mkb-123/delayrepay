@@ -294,7 +294,7 @@ def create_app(root: Path | str | None = None) -> Flask:
     @app.post("/api/claim-worker/run")
     def run_worker_now():
         _require_same_origin()
-        return jsonify({"status": "WAITING", "message": "Queued. The laptop worker picks it up within about 15 minutes while the laptop is on and signed in."})
+        return jsonify({"status": "WAITING", "message": "Queued. The laptop worker sends it once a day at 19:00 (or when the laptop is next on)."})
 
     @app.post("/api/operator-sessions/check")
     def check_operator_sessions():

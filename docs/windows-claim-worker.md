@@ -32,8 +32,8 @@ press Enter. The sessions stay outside Git under:
 %LOCALAPPDATA%\DelayRepay\browser-profiles\lm
 ```
 
-Install the automatic check, which runs every ten minutes while the laptop is
-available:
+Install the automatic send, which runs once a day at 19:00 (or at the next opportunity if the laptop
+was off):
 
 ```powershell
 .\scripts\windows\setup-claim-worker.ps1

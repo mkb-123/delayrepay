@@ -56,7 +56,7 @@ function workerChip() {
   const seen = data.operations?.laptopWorkerLastSeen;
   const fresh = seen && Date.now() - Date.parse(seen) < 24 * 3600000;
   const text = seen ? `Laptop worker seen ${relativeTime(seen)}` : "Laptop worker has not connected yet";
-  return `<span class="${fresh ? "health-ok" : "health-warn"}" title="Queued claims are collected when the laptop is on and signed in, about every 15 minutes.">${esc(text)}</span>`;
+  return `<span class="${fresh ? "health-ok" : "health-warn"}" title="Queued claims are sent once a day at 19:00, or when the laptop is next on.">${esc(text)}</span>`;
 }
 function sessionChips() {
   const sessions = Object.fromEntries((data.operations?.operatorSessions || []).map(item => [item.operator_code, item]));
