@@ -11,17 +11,24 @@ button { border: 0; border-radius: 8px; background: #176b55; color: white; paddi
 button.secondary { background: white; color: #255346; border: 1px solid #ccd5d0; }
 button:disabled { opacity: .5; cursor: wait; }
 
-.hero { display: flex; align-items: center; gap: 18px; background: #153e34; color: white; border-radius: 13px; padding: 11px 14px; }
+.hero { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: center; gap: 18px; background: #153e34; color: white; border-radius: 13px; padding: 11px 14px; }
 .hero div { display: flex; align-items: baseline; gap: 5px; }
 .hero strong { font-size: 1.4rem; }
 .hero span { color: #d2e6df; font-size: .75rem; font-weight: 700; }
 .hero p { color: #bdd6cd; font-size: .72rem; margin-left: auto; }
 .system-health { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.operator-health { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 7px; align-items: stretch; margin: 8px 0; }
+.operator-card { display: grid; gap: 2px; padding: 8px 10px; border-radius: 9px; border: 1px solid #dce2de; background: white; }
+.operator-card strong { font-size: .76rem; }.operator-card span { font-size: .7rem; font-weight: 750; }.operator-card small { color: #68736d; font-size: .61rem; }
+.operator-card.ready { border-left: 4px solid #168354; }.operator-card.warning { border-left: 4px solid #d09224; }
+.operator-health button { align-self: center; }
 .system-health span, .health-review { border-radius: 999px; padding: 5px 8px; font-size: .65rem; font-weight: 750; }
 .health-ok { color: #155e45; background: #d1fae5; }.health-warn { color: #854d0e; background: #fef3c7; }
 .health-review { background: #174b78; }
 
 .filter-panel { background: white; border: 1px solid #dfe4e1; border-radius: 10px; margin: 9px 0 12px; font-size: .8rem; }
+.history-panel { border-top: 1px solid #dce2de; margin-top: 22px; padding-top: 10px; }
+.history-panel > summary { cursor: pointer; color: #53615b; font-size: .78rem; font-weight: 800; padding: 8px 2px; }
 .filter-panel > summary { display: flex; justify-content: space-between; padding: 10px 12px; cursor: pointer; }
 .filter-panel > summary strong { color: #176b55; }
 .controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 2px 12px 11px; }
@@ -87,6 +94,7 @@ select, input { width: 100%; display: block; margin-top: 3px; border: 1px solid 
 .claim-lifecycle { display: inline-block; border: 1px solid transparent; border-radius: 999px; padding: 2px 6px; font-size: .65rem; font-weight: 850; line-height: 1.2; white-space: nowrap; }
 .claim-submission { display: inline-block; border: 1px solid #6b5cc4; border-radius: 999px; background: #eeeaff; color: #44358d; padding: 2px 6px; font-size: .65rem; font-weight: 850; line-height: 1.2; white-space: nowrap; }
 .submission-NEEDS_LOGIN, .submission-NEEDS_ATTENTION { border-color: #c17822; background: #fff1d9; color: #7a4305; }
+.submission-CALIBRATION_READY { border-color: #174b78; background: #dbeafe; color: #174b78; }
 .submission-SUBMITTED { border-color: #168354; background: #dcf4e6; color: #075c39; }
 .lifecycle-SUBMITTED { color: #174b78; background: #dbeafe; border-color: #93c5fd; }
 .lifecycle-APPROVED { color: #166534; background: #dcfce7; border-color: #86efac; }
@@ -126,7 +134,7 @@ dialog::backdrop { background: #10251eaa; }
 .operation-plan { background: #edf4f1; border-radius: 8px; padding: 10px; font-size: .78rem; line-height: 1.5; }
 
 @media (max-width: 600px) {
-  .hero { gap: 11px; }
+  .hero { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 14px; }
   .hero p { display: none; }
   .hero strong { font-size: 1.2rem; }
   .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -135,6 +143,8 @@ dialog::backdrop { background: #10251eaa; }
   .recommend-day { grid-template-columns: 68px 1fr; }
   .recommend-day > div { grid-template-columns: 1fr; }
   .pipeline-grid { grid-template-columns: 1fr; }
+  .operator-health { grid-template-columns: 1fr 1fr; }
+  .operator-health button { grid-column: 1 / -1; }
   .operation-fields { grid-template-columns: 1fr 70px; }
   .operation-fields label:last-child { grid-column: 1 / -1; }
   .grid-scroll { display: none; }

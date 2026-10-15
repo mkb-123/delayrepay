@@ -13,14 +13,25 @@
   </header>
   <main>
     <section class="hero">
-      <div><strong id="potentialCount">—</strong><span>Potential</span></div>
-      <div><strong id="reviewCount">—</strong><span>Decide</span></div>
-      <div><strong id="claimedCount">—</strong><span>Claimed</span></div>
+      <div><strong id="potentialCount">—</strong><span>Claims to choose</span></div>
+      <div><strong id="queuedCount">—</strong><span>Queued on Pi</span></div>
+      <div><strong id="attentionCount">—</strong><span>Needs attention</span></div>
+      <div><strong id="awaitingCount">—</strong><span>Awaiting operator</span></div>
       <p id="rangeLabel">Loading…</p>
     </section>
+    <section id="operatorHealth" class="operator-health"></section>
     <section id="systemHealth" class="system-health" aria-live="polite"></section>
+    <div id="notice" class="notice" hidden></div>
+    <section id="claimPipeline" class="claim-pipeline"></section>
+    <section class="recommendations">
+      <div class="section-heading"><h2>Claims to choose</h2><label class="show-acknowledged"><input type="checkbox" id="showAcknowledged"> Show acknowledged</label></div>
+      <p class="recommend-note">Choose only the train you actually travelled on.</p>
+      <div id="recommendations"></div>
+    </section>
 
-    <details class="filter-panel">
+    <details class="history-panel">
+      <summary>History, heat map and filters</summary>
+    <details class="filter-panel" open>
       <summary><span>Filters</span><strong id="filterSummary">15+ min or cancelled</strong></summary>
       <section class="controls">
         <label>Period
@@ -37,15 +48,8 @@
       </section>
       <p class="incomplete"><span id="incompleteCount">—</span> incomplete collection days</p>
     </details>
-
-    <div id="notice" class="notice" hidden></div>
-    <section id="claimPipeline" class="claim-pipeline"></section>
-    <section class="recommendations">
-      <div class="section-heading"><h2>What to claim</h2><label class="show-acknowledged"><input type="checkbox" id="showAcknowledged"> Show acknowledged</label></div>
-      <p class="recommend-note">Assumes the highlighted service is the train you travelled on.</p>
-      <div id="recommendations"></div>
-    </section>
     <section id="results" aria-live="polite"></section>
+    </details>
   </main>
 
   <dialog id="serviceDialog" class="service-dialog"><button class="dialog-close secondary" onclick="this.closest('dialog').close()">Close</button><div id="serviceDetail"></div></dialog>

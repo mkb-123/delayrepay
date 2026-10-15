@@ -8,7 +8,7 @@ import threading
 import uuid
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from ..refresh import CollectionBusyError, CollectionLock, refresh_plan
 from ..ingestion.rtt import RttClient
@@ -16,10 +16,20 @@ from ..operations import collection_plan, discovery_plan
 from ..storage.sqlite import Database
 from ..workflows import build_report_data, collect, discover, set_claim
 from ..workflows import _now
+from ..claiming.worker import check_sessions, run as run_claim_worker
 
 LOGGER = logging.getLogger("delayrepay.web")
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
+
+
+def _run_claims(root: Path) -> None:
+    try:
+        run_claim_worker(root)
+    except RuntimeError:
+        LOGGER.info("Claim worker already running")
+    except Exception:
+        LOGGER.exception("Claim worker failed")
 
 
 def _job_update(job_id: str, **values: Any) -> None:
@@ -126,6 +136,8 @@ def create_app(root: Path | str | None = None) -> Flask:
             last_reconciliation = database.metadata_value("last_gmail_reconciliation")
             last_collection = database.latest_collection_time()
             claim_tracking = database.claim_tracking_items()
+            operator_sessions = database.operator_sessions()
+            calibrated = {code: database.operator_calibrated(code) for code in ("VT", "LM")}
         totals = {"potentialClaims": 0, "needsReview": 0, "claimed": 0, "noClaim": 0, "incompleteDays": 0}
         for report in reports:
             for key in ("potentialClaims", "needsReview", "claimed", "noClaim"):
@@ -140,6 +152,8 @@ def create_app(root: Path | str | None = None) -> Flask:
             "gmailConfigured": bool(token_value and Path(token_value).is_file()),
             "emailReview": email_review,
             "claimTracking": claim_tracking,
+            "operatorSessions": operator_sessions,
+            "operatorCalibrated": calibrated,
             "lastBackup": datetime.fromtimestamp(backups[0].stat().st_mtime, timezone.utc).isoformat() if backups else None,
             "backupMirrorConfigured": bool(mirror_value),
             "backupMirrorAvailable": bool(mirror_value and Path(mirror_value).is_dir()),
@@ -246,8 +260,64 @@ def create_app(root: Path | str | None = None) -> Flask:
                 raise ValueError("Only a claimable or reviewed disruption can be queued.")
             if database.claim_lifecycle(service_id) and database.claim_lifecycle(service_id)["status"] in {"SUBMITTED", "APPROVED", "PAID"}:
                 raise ValueError("This journey already has an operator claim.")
-            database.queue_claim_submission(service_id, service["operatorCode"], _now())
-        return jsonify({"status": "QUEUED", "message": "Queued for automatic submission on the Raspberry Pi."})
+            mode = "SUBMIT" if database.operator_calibrated(service["operatorCode"]) else "CALIBRATE"
+            database.queue_claim_submission(service_id, service["operatorCode"], _now(), mode)
+        threading.Thread(target=_run_claims, args=(data_root,), daemon=True).start()
+        message = "Submitting on the Raspberry Pi." if mode == "SUBMIT" else "Opening the form in calibration mode; it will stop before submission."
+        return jsonify({"status": "QUEUED", "mode": mode, "message": message})
+
+    @app.post("/api/services/<path:service_id>/submission/confirm-calibration")
+    def confirm_calibration(service_id: str):
+        _require_same_origin()
+        with Database(data_root) as database:
+            service = database.service_by_id(service_id)
+            submission = database.claim_submission(service_id)
+            if not service or not submission:
+                return jsonify({"error": "Claim calibration not found"}), 404
+            if submission["state"] != "CALIBRATION_READY":
+                raise ValueError("This claim is not waiting for calibration confirmation.")
+            database.set_operator_calibrated(service["operatorCode"], _now())
+            database.queue_claim_submission(service_id, service["operatorCode"], _now(), "SUBMIT")
+        threading.Thread(target=_run_claims, args=(data_root,), daemon=True).start()
+        return jsonify({"status": "QUEUED", "message": "Calibration approved; submitting this claim now."})
+
+    @app.post("/api/services/<path:service_id>/submission/retry")
+    def retry_submission(service_id: str):
+        _require_same_origin()
+        with Database(data_root) as database:
+            service = database.service_by_id(service_id)
+            submission = database.claim_submission(service_id)
+            if not service or not submission:
+                return jsonify({"error": "Queued claim not found"}), 404
+            mode = submission.get("mode") or ("SUBMIT" if database.operator_calibrated(service["operatorCode"]) else "CALIBRATE")
+            database.queue_claim_submission(service_id, service["operatorCode"], _now(), mode)
+        threading.Thread(target=_run_claims, args=(data_root,), daemon=True).start()
+        return jsonify({"status": "QUEUED", "message": "Retry started."})
+
+    @app.post("/api/claim-worker/run")
+    def run_worker_now():
+        _require_same_origin()
+        threading.Thread(target=_run_claims, args=(data_root,), daemon=True).start()
+        return jsonify({"status": "STARTED", "message": "Claim worker started."})
+
+    @app.post("/api/operator-sessions/check")
+    def check_operator_sessions():
+        _require_same_origin()
+        def task():
+            try:
+                check_sessions(data_root)
+            except RuntimeError:
+                LOGGER.info("Browser worker already running")
+            except Exception:
+                LOGGER.exception("Operator session check failed")
+        threading.Thread(target=task, daemon=True).start()
+        return jsonify({"status": "STARTED", "message": "Operator login check started."})
+
+    @app.get("/api/claim-screenshots/<path:filename>")
+    def claim_screenshot(filename: str):
+        if Path(filename).name != filename or not filename.endswith(".png"):
+            raise ValueError("Invalid screenshot name")
+        return send_from_directory(data_root / "claim-screenshots", filename)
 
     @app.delete("/api/services/<path:service_id>/submission")
     def cancel_submission(service_id: str):

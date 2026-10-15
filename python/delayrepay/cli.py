@@ -56,6 +56,7 @@ def parser() -> argparse.ArgumentParser:
     claim_login.add_argument("--operator", required=True, choices=("VT", "LM"))
     claim_worker = commands.add_parser("claim-worker", help="Submit journeys explicitly queued in the dashboard")
     claim_worker.add_argument("--limit", type=int, default=5)
+    commands.add_parser("claim-session-check", help="Check and refresh saved operator login sessions")
     return root
 
 
@@ -178,6 +179,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "claim-worker":
             from .claiming.worker import run
             print(json.dumps(run(root, args.limit), indent=2))
+        elif args.command == "claim-session-check":
+            from .claiming.worker import check_sessions
+            print(json.dumps(check_sessions(root), indent=2))
         return 0
     except (ValueError, RttError, CollectionBusyError) as error:
         print(f"Error: {error}", file=sys.stderr)

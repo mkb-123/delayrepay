@@ -9,6 +9,7 @@ This setup targets Raspberry Pi OS or another Debian-based distribution with sys
 - `delayrepay-email.timer`: outstanding-claims email at 09:00 Saturday;
 - `delayrepay-reconcile.timer`: read-only Gmail claim reconciliation at 20:00 daily;
 - `delayrepay-claim-worker.timer`: checks every five minutes for journeys explicitly selected in the dashboard;
+- `delayrepay-claim-session.timer`: checks both saved operator sessions each morning;
 - `delayrepay-backup.timer`: consistent SQLite backup at 02:30 daily, retaining 30;
 - Avahi/mDNS access at `http://delayrepay.local` through Nginx;
 - runtime SQLite and catalogue files in `/var/lib/delayrepay`, separate from Git.
@@ -204,6 +205,13 @@ journalctl -u delayrepay-collect.service -n 100
 journalctl -u delayrepay-reconcile.service -n 100
 journalctl -u delayrepay-claim-worker.service -n 100
 ```
+
+The first queued claim for Avanti and the first for LNR stop at the final form
+confirmation and save a screenshot. Review it in the dashboard and choose
+`Approve form & submit`. This calibrates that operator adapter; subsequent
+journeys selected in the dashboard may be submitted without that extra step.
+Failures retain the last safe step and a screenshot, and can be retried from the
+journey detail view.
 
 Backups are written safely with SQLite's backup API to
 `/var/lib/delayrepay/backups`. Use `export-state.sh` for a complete portable

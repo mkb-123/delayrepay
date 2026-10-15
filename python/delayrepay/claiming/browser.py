@@ -7,9 +7,21 @@ from pathlib import Path
 from typing import Any
 
 
-PORTALS = {
-    "VT": "https://delayrepay.avantiwestcoast.co.uk/",
-    "LM": "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=myclaims.add",
+@dataclass(frozen=True)
+class OperatorAdapter:
+    code: str
+    version: str
+    portal: str
+    date_labels: tuple[str, ...]
+    origin_labels: tuple[str, ...]
+    destination_labels: tuple[str, ...]
+    departure_labels: tuple[str, ...]
+    arrival_labels: tuple[str, ...]
+
+
+ADAPTERS = {
+    "VT": OperatorAdapter("VT", "avanti-2026-10", "https://delayrepay.avantiwestcoast.co.uk/", (r"date.*journey", r"travel date", r"departure date"), (r"from", r"origin", r"departure station"), (r"to", r"destination", r"arrival station"), (r"scheduled departure", r"departure time"), (r"actual arrival", r"arrival time")),
+    "LM": OperatorAdapter("LM", "lnr-2026-10", "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=myclaims.add", (r"date.*journey", r"travel date", r"departure date"), (r"from", r"origin", r"departure station"), (r"to", r"destination", r"arrival station"), (r"scheduled departure", r"departure time"), (r"actual arrival", r"arrival time")),
 }
 
 
@@ -24,6 +36,9 @@ class LoginRequired(ClaimBrowserError):
 @dataclass
 class SubmissionResult:
     reference: str | None
+    submitted: bool
+    screenshot_path: str | None = None
+    last_step: str | None = None
 
 
 def _playwright():
@@ -41,14 +56,14 @@ def profile_dir(root: Path, operator_code: str) -> Path:
 
 
 def login(root: Path, operator_code: str) -> None:
-    if operator_code not in PORTALS:
+    if operator_code not in ADAPTERS:
         raise ValueError(f"Unsupported operator: {operator_code}")
     with _playwright()() as playwright:
         context = playwright.chromium.launch_persistent_context(
             str(profile_dir(root, operator_code)), headless=False,
         )
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto(PORTALS[operator_code], wait_until="domcontentloaded")
+        page.goto(ADAPTERS[operator_code].portal, wait_until="domcontentloaded")
         _fill_credentials(page, operator_code)
         input("Log in, complete any CAPTCHA, confirm the saved season ticket, then press Enter here...")
         context.close()
@@ -123,31 +138,53 @@ def _attempt_login(page: Any, operator_code: str) -> None:
         raise LoginRequired(f"{operator_code} login was not accepted or needs additional verification.")
 
 
-def submit(root: Path, service: dict[str, Any]) -> SubmissionResult:
-    operator_code = service["operatorCode"]
-    if operator_code not in PORTALS:
-        raise ClaimBrowserError(f"No claim browser is configured for operator {operator_code}.")
-    screenshots = root / "claim-screenshots"
-    screenshots.mkdir(parents=True, exist_ok=True)
+def screenshot_path(root: Path, service: dict[str, Any]) -> Path:
     safe_id = re.sub(r"[^A-Za-z0-9_.-]", "_", service["serviceId"])
+    return root / "claim-screenshots" / f"{safe_id}.png"
+
+
+def check_session(root: Path, operator_code: str) -> tuple[str, str]:
+    adapter = ADAPTERS[operator_code]
+    with _playwright()() as playwright:
+        context = playwright.chromium.launch_persistent_context(str(profile_dir(root, operator_code)), headless=True)
+        page = context.pages[0] if context.pages else context.new_page()
+        try:
+            page.goto(adapter.portal, wait_until="domcontentloaded", timeout=60_000)
+            _attempt_login(page, operator_code)
+            return "LOGIN_OK", "Operator account opened successfully."
+        except LoginRequired as error:
+            return "LOGIN_NEEDED", str(error)
+        except Exception as error:
+            return "CHECK_FAILED", f"Session check failed: {type(error).__name__}"
+        finally:
+            context.close()
+
+
+def submit(root: Path, service: dict[str, Any], mode: str = "CALIBRATE") -> SubmissionResult:
+    operator_code = service["operatorCode"]
+    if operator_code not in ADAPTERS:
+        raise ClaimBrowserError(f"No claim browser is configured for operator {operator_code}.")
+    adapter = ADAPTERS[operator_code]
+    shot = screenshot_path(root, service)
+    shot.parent.mkdir(parents=True, exist_ok=True)
     with _playwright()() as playwright:
         context = playwright.chromium.launch_persistent_context(
             str(profile_dir(root, operator_code)), headless=True,
         )
         page = context.pages[0] if context.pages else context.new_page()
         try:
-            page.goto(PORTALS[operator_code], wait_until="domcontentloaded", timeout=60_000)
+            page.goto(adapter.portal, wait_until="domcontentloaded", timeout=60_000)
             _attempt_login(page, operator_code)
 
             departure = service["scheduledDeparture"]
             arrival = service.get("actualArrival") or service.get("scheduledArrival")
             values_filled = 0
-            values_filled += _fill_label(page, [r"date.*journey", r"travel date", r"departure date"], service["serviceDate"])
-            values_filled += _fill_label(page, [r"from", r"origin", r"departure station"], "Milton Keynes Central" if service["origin"] == "MKC" else "London Euston")
-            values_filled += _fill_label(page, [r"to", r"destination", r"arrival station"], "London Euston" if service["destination"] == "EUS" else "Milton Keynes Central")
-            values_filled += _fill_label(page, [r"scheduled departure", r"departure time"], departure[11:16])
+            values_filled += _fill_label(page, list(adapter.date_labels), service["serviceDate"])
+            values_filled += _fill_label(page, list(adapter.origin_labels), "Milton Keynes Central" if service["origin"] == "MKC" else "London Euston")
+            values_filled += _fill_label(page, list(adapter.destination_labels), "London Euston" if service["destination"] == "EUS" else "Milton Keynes Central")
+            values_filled += _fill_label(page, list(adapter.departure_labels), departure[11:16])
             if arrival:
-                values_filled += _fill_label(page, [r"actual arrival", r"arrival time"], arrival[11:16])
+                values_filled += _fill_label(page, list(adapter.arrival_labels), arrival[11:16])
             _choose_saved_ticket(page)
             if values_filled < 3:
                 raise ClaimBrowserError("The operator changed its claim form; journey fields could not be identified.")
@@ -155,6 +192,9 @@ def submit(root: Path, service: dict[str, Any]) -> SubmissionResult:
             for _ in range(6):
                 submit_button = page.get_by_role("button", name=re.compile(r"submit( claim)?$", re.I)).first
                 if submit_button.count() and submit_button.is_visible():
+                    if mode == "CALIBRATE":
+                        page.screenshot(path=str(shot), full_page=True)
+                        return SubmissionResult(None, False, shot.name, "Final confirmation")
                     submit_button.click()
                     page.wait_for_load_state("domcontentloaded")
                     break
@@ -169,12 +209,12 @@ def submit(root: Path, service: dict[str, Any]) -> SubmissionResult:
             success = re.search(r"claim (?:has been |was )?(?:submitted|received)|thank you.*claim", content, re.I | re.S)
             if not success and not reference_match:
                 raise ClaimBrowserError("The portal did not show a submission confirmation.")
-            return SubmissionResult(reference_match.group(1).upper() if reference_match else None)
+            return SubmissionResult(reference_match.group(1).upper() if reference_match else None, True, None, "Submitted")
         except ClaimBrowserError:
-            page.screenshot(path=str(screenshots / f"{safe_id}.png"), full_page=True)
+            page.screenshot(path=str(shot), full_page=True)
             raise
         except Exception as error:
-            page.screenshot(path=str(screenshots / f"{safe_id}.png"), full_page=True)
+            page.screenshot(path=str(shot), full_page=True)
             raise ClaimBrowserError(f"Browser submission failed: {type(error).__name__}") from error
         finally:
             context.close()

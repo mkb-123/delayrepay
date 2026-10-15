@@ -19,6 +19,7 @@ check "mDNS alias" systemctl is-active --quiet delayrepay-avahi-alias.service
 check "collection timer" systemctl is-enabled --quiet delayrepay-collect.timer
 check "reconciliation timer" systemctl is-enabled --quiet delayrepay-reconcile.timer
 check "claim worker timer" systemctl is-enabled --quiet delayrepay-claim-worker.timer
+check "claim session timer" systemctl is-enabled --quiet delayrepay-claim-session.timer
 check "backup timer" systemctl is-enabled --quiet delayrepay-backup.timer
 check "Saturday email timer" systemctl is-enabled --quiet delayrepay-email.timer
 check "internal health" curl -fsS --max-time 5 http://127.0.0.1:8765/health

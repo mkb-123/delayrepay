@@ -90,7 +90,7 @@ Use **Update data** to preview and run either operation from the dashboard:
 
 Both run in the background with visible progress and share the same collection lock and RTT rate-limit backoff as the CLI.
 
-`Claim this train` adds that exact journey to the Raspberry Pi submission queue. The browser worker checks the queue every five minutes, uses the saved operator-account session and saved season ticket, and records the claim reference when the portal confirms submission. `Mark as already claimed` remains a manual acknowledgement for claims submitted elsewhere.
+`Claim this train` adds that exact journey to the Raspberry Pi submission queue and starts the worker immediately. The first claim for each operator runs in calibration mode: the form is completed but stops before its final submit button, and the dashboard shows a screenshot. After you approve that form once, later selected claims can submit automatically. The five-minute timer is a fallback for interrupted runs. `Mark as already claimed` remains a manual acknowledgement for claims submitted elsewhere.
 
 The queue is deliberately journey-specific: select only the train actually travelled on. If an operator login expires, CAPTCHA appears, or the form changes, the item becomes **Login needed** or **Check needed** instead of being guessed or submitted twice.
 
@@ -208,7 +208,7 @@ dashboard address is `http://delayrepay.local`.
 
 ### Enable automatic claims
 
-The Pi installer installs Chromium, Playwright, and a claim-worker timer. Log in
+The Pi installer installs Chromium, Playwright, a claim-worker timer, and a daily operator-session health check. Log in
 to each operator once from a graphical Pi session or VNC terminal:
 
 ```bash

@@ -121,9 +121,23 @@ class Database:
                 last_error TEXT
             );
             CREATE INDEX IF NOT EXISTS claim_submissions_state_idx ON claim_submissions(state, queued_at);
+            CREATE TABLE IF NOT EXISTS operator_sessions (
+                operator_code TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                checked_at TEXT NOT NULL,
+                explanation TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         """)
-        self.connection.execute("PRAGMA user_version=3")
+        columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(claim_submissions)")}
+        for name, declaration in {
+            "mode": "TEXT NOT NULL DEFAULT 'CALIBRATE'",
+            "last_step": "TEXT",
+            "screenshot_path": "TEXT",
+        }.items():
+            if name not in columns:
+                self.connection.execute(f"ALTER TABLE claim_submissions ADD COLUMN {name} {declaration}")
+        self.connection.execute("PRAGMA user_version=4")
         self.connection.commit()
 
     def _import_json_history(self, root: Path) -> None:
@@ -249,7 +263,8 @@ class Database:
                    l.operator_code, l.claim_reference, l.explanation,
                    q.state AS submission_state, q.queued_at, q.started_at,
                    q.finished_at, q.attempt_count, q.claim_reference AS submission_reference,
-                   q.last_error AS submission_error
+                   q.last_error AS submission_error, q.mode AS submission_mode,
+                   q.last_step AS submission_step, q.screenshot_path
             FROM services s
             LEFT JOIN claims c ON c.service_id = s.service_id
             LEFT JOIN claim_lifecycle l ON l.service_id = s.service_id
@@ -274,7 +289,8 @@ class Database:
                     "state": row["submission_state"], "queuedAt": row["queued_at"],
                     "startedAt": row["started_at"], "finishedAt": row["finished_at"],
                     "attemptCount": row["attempt_count"], "claimReference": row["submission_reference"],
-                    "lastError": row["submission_error"],
+                    "lastError": row["submission_error"], "mode": row["submission_mode"],
+                    "lastStep": row["submission_step"], "screenshotPath": row["screenshot_path"],
                 }
             items.append({**service, "claimedAt": row["claimed_at"], "claimLifecycle": lifecycle, "claimSubmission": submission})
         return items
@@ -285,18 +301,22 @@ class Database:
         ).fetchone()
         return dict(row) if row else None
 
-    def queue_claim_submission(self, service_id: str, operator_code: str, queued_at: str) -> None:
+    def queue_claim_submission(self, service_id: str, operator_code: str, queued_at: str, mode: str = "CALIBRATE") -> None:
+        if mode not in {"CALIBRATE", "SUBMIT"}:
+            raise ValueError("Unsupported claim submission mode.")
         with self.connection:
             self.connection.execute("""
                 INSERT INTO claim_submissions(
                     service_id, operator_code, state, queued_at, updated_at,
-                    started_at, finished_at, attempt_count, claim_reference, last_error
-                ) VALUES(?, ?, 'QUEUED', ?, ?, NULL, NULL, 0, NULL, NULL)
+                    started_at, finished_at, attempt_count, claim_reference, last_error,
+                    mode, last_step, screenshot_path
+                ) VALUES(?, ?, 'QUEUED', ?, ?, NULL, NULL, 0, NULL, NULL, ?, NULL, NULL)
                 ON CONFLICT(service_id) DO UPDATE SET
                     operator_code=excluded.operator_code, state='QUEUED', queued_at=excluded.queued_at,
                     updated_at=excluded.updated_at, started_at=NULL, finished_at=NULL,
-                    claim_reference=NULL, last_error=NULL
-            """, (service_id, operator_code, queued_at, queued_at))
+                    claim_reference=NULL, last_error=NULL, mode=excluded.mode,
+                    last_step=NULL, screenshot_path=NULL
+            """, (service_id, operator_code, queued_at, queued_at, mode))
 
     def cancel_claim_submission(self, service_id: str) -> None:
         with self.connection:
@@ -319,8 +339,9 @@ class Database:
     def update_claim_submission(
         self, service_id: str, state: str, updated_at: str, *, claim_reference: str | None = None,
         error: str | None = None, started: bool = False, finished: bool = False,
+        last_step: str | None = None, screenshot_path: str | None = None,
     ) -> None:
-        allowed = {"QUEUED", "PROCESSING", "SUBMITTED", "NEEDS_LOGIN", "NEEDS_ATTENTION", "RETRY"}
+        allowed = {"QUEUED", "PROCESSING", "CALIBRATION_READY", "SUBMITTED", "NEEDS_LOGIN", "NEEDS_ATTENTION", "RETRY"}
         if state not in allowed:
             raise ValueError(f"Unsupported submission state: {state}")
         with self.connection:
@@ -329,12 +350,37 @@ class Database:
                     started_at=CASE WHEN ? THEN ? ELSE started_at END,
                     finished_at=CASE WHEN ? THEN ? ELSE finished_at END,
                     attempt_count=attempt_count + CASE WHEN ? THEN 1 ELSE 0 END,
-                    claim_reference=COALESCE(?, claim_reference), last_error=?
+                    claim_reference=COALESCE(?, claim_reference), last_error=?,
+                    last_step=COALESCE(?, last_step), screenshot_path=COALESCE(?, screenshot_path)
                 WHERE service_id=?
             """, (
                 state, updated_at, int(started), updated_at, int(finished), updated_at,
-                int(started), claim_reference, error, service_id,
+                int(started), claim_reference, error, last_step, screenshot_path, service_id,
             ))
+
+    def operator_sessions(self) -> list[dict[str, Any]]:
+        return [dict(row) for row in self.connection.execute(
+            "SELECT operator_code, status, checked_at, explanation FROM operator_sessions ORDER BY operator_code"
+        ).fetchall()]
+
+    def set_operator_session(self, operator_code: str, status: str, checked_at: str, explanation: str) -> None:
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO operator_sessions(operator_code, status, checked_at, explanation)
+                VALUES(?, ?, ?, ?)
+                ON CONFLICT(operator_code) DO UPDATE SET status=excluded.status,
+                    checked_at=excluded.checked_at, explanation=excluded.explanation
+            """, (operator_code, status, checked_at, explanation))
+
+    def set_operator_calibrated(self, operator_code: str, calibrated_at: str) -> None:
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO metadata(key, value) VALUES(?, ?)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """, (f"claim_calibrated_{operator_code}", calibrated_at))
+
+    def operator_calibrated(self, operator_code: str) -> bool:
+        return self.metadata_value(f"claim_calibrated_{operator_code}") is not None
 
     def record_submitted_claim(
         self, service_id: str, operator_code: str, submitted_at: str, claim_reference: str | None,

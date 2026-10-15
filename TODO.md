@@ -5,7 +5,7 @@
 ### Validate authenticated operator forms
 
 - Run `claim-login` for Avanti and LNR on the Pi and confirm both saved season tickets are visible.
-- Queue one real journey from each operator and inspect the first worker run.
+- Queue one real journey from each operator, inspect its calibration screenshot, and approve it in the dashboard.
 - Update the semantic form-field patterns if either authenticated portal uses different labels.
 - Confirm the portal reference is captured and a second worker run cannot submit the journey again.
 
@@ -38,7 +38,7 @@
 ### 4. Add versioned database migrations
 
 The current schema is created with `CREATE TABLE IF NOT EXISTS` and reports
-`user_version=2`. Replace this with ordered migrations before more schema
+`user_version=4`. Replace this with ordered migrations before more schema
 changes are added. Existing Windows and Pi databases must upgrade without
 losing services, claims, acknowledgements, manual decisions, or email events.
 
@@ -67,7 +67,7 @@ The workflow was intentionally built without a committed test suite while requir
 
 - Add authentication before exposing the dashboard beyond the trusted home LAN.
 - Use Tailscale or another private VPN for access away from home rather than public port forwarding.
-- Add a dashboard health panel showing the last successful collection, next scheduled run, and most recent error.
+- Add the next scheduled collection and most recent collection error to the existing dashboard health panel.
 
 ## Replace Gmail app-password SMTP with OAuth 2.0
 

@@ -173,6 +173,35 @@ RandomizedDelaySec=30s
 WantedBy=timers.target
 EOF
 
+sudo tee /etc/systemd/system/delayrepay-claim-session.service >/dev/null <<EOF
+[Unit]
+Description=Check Delay Repay operator browser sessions
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=$run_user
+Group=$run_group
+WorkingDirectory=$repo_dir
+EnvironmentFile=$repo_dir/.env
+Environment=DELAYREPAY_REPO_DIR=$repo_dir
+ExecStart=$repo_dir/.venv/bin/python -m delayrepay claim-session-check
+EOF
+
+sudo tee /etc/systemd/system/delayrepay-claim-session.timer >/dev/null <<'EOF'
+[Unit]
+Description=Daily Delay Repay operator session health check
+
+[Timer]
+OnCalendar=*-*-* 08:30
+Persistent=true
+RandomizedDelaySec=2m
+
+[Install]
+WantedBy=timers.target
+EOF
+
 sudo tee /etc/systemd/system/delayrepay-backup.service >/dev/null <<EOF
 [Unit]
 Description=Back up the Delay Repay SQLite database
@@ -246,7 +275,7 @@ sudo ln -sfn /etc/nginx/sites-available/delayrepay /etc/nginx/sites-enabled/dela
 sudo nginx -t
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now delayrepay.service delayrepay-collect.timer delayrepay-email.timer delayrepay-reconcile.timer delayrepay-claim-worker.timer delayrepay-backup.timer delayrepay-avahi-alias.service avahi-daemon.service nginx.service
+sudo systemctl enable --now delayrepay.service delayrepay-collect.timer delayrepay-email.timer delayrepay-reconcile.timer delayrepay-claim-worker.timer delayrepay-claim-session.timer delayrepay-backup.timer delayrepay-avahi-alias.service avahi-daemon.service nginx.service
 sudo systemctl restart nginx.service
 
 echo "Delay Repay installed."
