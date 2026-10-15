@@ -113,7 +113,10 @@ select, input { width: 100%; display: block; margin-top: 3px; border: 1px solid 
 .NEEDS_REVIEW { color: #713f12; background: #fef3c7; }
 .CLAIMED { color: #155e45; background: #d1fae5; }
 .NO_CLAIM { color: #4b5563; background: #eef1ef; }
-.notice { border-radius: 9px; background: #e7f1ed; padding: 10px; margin: 4px 0 10px; font-size: .8rem; }
+.notice { position: fixed; left: 12px; right: 12px; bottom: 14px; z-index: 50; max-width: 560px; margin: auto; border-radius: 10px; background: #153e34; color: white; padding: 12px 14px; font-size: .9rem; box-shadow: 0 8px 28px #0004; }
+.notice.error { background: #991b1b; }
+.notice button { margin-left: 8px; background: white; color: #991b1b; padding: 4px 10px; }
+.notice[hidden] { display: none; }
 .empty { padding: 35px 10px; text-align: center; color: #67716c; }
 
 dialog { width: min(460px, calc(100% - 24px)); border: 0; border-radius: 14px; padding: 18px; box-shadow: 0 25px 60px #0005; }
@@ -158,4 +161,32 @@ dialog::backdrop { background: #10251eaa; }
   .mobile-journey { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; color: #26312c; background: white; border: 1px solid #dce2de; text-align: left; }
   .mobile-journey > span:not(.claim-lifecycle) { color: #68736d; font-size: .68rem; }
   .mobile-journey .claim-lifecycle { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+}
+
+.todo { margin: 6px 0 10px; }
+.todo h2 { font-size: 1rem; margin: 0 2px 7px; }
+.todo-list { display: grid; gap: 6px; }
+.todo-item { display: flex; align-items: center; gap: 10px; min-height: 48px; text-align: left; background: white; color: #26312c; border: 1px solid #dce2de; font-size: .9rem; }
+.todo-item strong { font-size: 1.3rem; min-width: 1.4em; }
+.todo-claim { background: #fff0bd; border-color: #dfb833; }
+.todo-ready { background: #dbeafe; border-color: #60a5fa; }
+.todo-warn { background: #fff1d9; border-color: #e0a443; }
+.todo-email { background: #e8eef6; border-color: #9db6d3; }
+.todo-clear { padding: 12px; border-radius: 10px; background: #d9f1e2; color: #155e45; font-weight: 750; font-size: .9rem; }
+.system-panel { margin: 8px 0; background: white; border: 1px solid #dfe4e1; border-radius: 10px; font-size: .8rem; }
+.system-panel > summary { display: flex; justify-content: space-between; padding: 10px 12px; cursor: pointer; }
+.system-panel > summary strong { color: #155e45; }
+.system-panel.has-issues > summary strong { color: #854d0e; }
+.system-panel > section { padding: 0 10px 10px; }
+.recommend-row { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0; gap: 0; }
+.recommend-row .row-main { display: flex; flex-direction: column; align-items: flex-start; min-height: 54px; padding: 8px 10px; background: transparent; color: inherit; text-align: left; border-radius: 8px; }
+.recommend-row .quick-claim { margin-right: 8px; min-height: 44px; min-width: 64px; }
+.recommend-row.no-action { display: flex; padding: 8px 10px; }
+.deadline { margin-top: 4px; color: #68736d; font-size: .66rem; font-weight: 750; }
+.deadline.urgent { color: #b91c1c; }
+@media (max-width: 600px) {
+  .ack-day { min-height: 36px; }
+  .recommend-row strong { font-size: .9rem; }
+  .recommend-row span { font-size: .78rem; }
+  .deadline { font-size: .74rem; }
 }

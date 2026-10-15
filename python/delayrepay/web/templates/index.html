@@ -12,6 +12,7 @@
     <button id="refreshButton" class="secondary">Update data</button>
   </header>
   <main>
+    <section id="todo" class="todo" aria-live="polite"></section>
     <section class="hero">
       <div><strong id="potentialCount">—</strong><span>Claims to choose</span></div>
       <div><strong id="queuedCount">—</strong><span>Queued on Pi</span></div>
@@ -19,9 +20,12 @@
       <div><strong id="awaitingCount">—</strong><span>Awaiting operator</span></div>
       <p id="rangeLabel">Loading…</p>
     </section>
-    <section id="operatorHealth" class="operator-health"></section>
-    <section id="systemHealth" class="system-health" aria-live="polite"></section>
-    <div id="notice" class="notice" hidden></div>
+    <details id="systemPanel" class="system-panel">
+      <summary><span>System</span><strong id="systemSummary">Checking…</strong></summary>
+      <section id="operatorHealth" class="operator-health"></section>
+      <section id="systemHealth" class="system-health" aria-live="polite"></section>
+    </details>
+    <div id="notice" class="notice" role="status" hidden></div>
     <section id="claimPipeline" class="claim-pipeline"></section>
     <section class="recommendations">
       <div class="section-heading"><h2>Claims to choose</h2><label class="show-acknowledged"><input type="checkbox" id="showAcknowledged"> Show acknowledged</label></div>
