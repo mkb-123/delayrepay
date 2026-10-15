@@ -1,63 +1,30 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("VT", "LM")]
-    [string]$Operator,
-    [string]$PiHost = "bhakta-pi@pi.local"
+    [string]$Operator
 )
 
 $ErrorActionPreference = "Stop"
-function Assert-NativeSuccess([string]$Step) {
-    if ($LASTEXITCODE -ne 0) { throw "$Step failed with exit code $LASTEXITCODE." }
-}
-function Convert-ToWslPath([string]$WindowsPath) {
-    $absolute = [System.IO.Path]::GetFullPath($WindowsPath)
-    if ($absolute -notmatch '^([A-Za-z]):\\(.*)$') { throw "Unsupported Windows path: $absolute" }
-    $drive = $Matches[1].ToLowerInvariant()
-    $rest = $Matches[2].Replace('\', '/')
-    return "/mnt/$drive/$rest"
-}
-$repoDir = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
 if (-not (Test-Path $chrome)) {
     $chrome = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 }
 if (-not (Test-Path $chrome)) { throw "Chrome or Edge was not found." }
-$nodeCommand = Get-Command node -ErrorAction SilentlyContinue
-$node = if ($nodeCommand) { $nodeCommand.Source } else {
-    Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
-}
-if (-not (Test-Path $node)) {
-    throw "Node.js was not found. Install Node.js or run this command from a Codex terminal."
-}
 
 $settings = if ($Operator -eq "VT") {
-    @{ Url = "https://delayrepay.avantiwestcoast.co.uk/"; Domain = "delayrepay.avantiwestcoast.co.uk" }
+    @{ Url = "https://delayrepay.avantiwestcoast.co.uk/" }
 } else {
-    @{ Url = "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=login.login"; Domain = "londonnorthwesternrailway.delayrepaycompensation.com" }
+    @{ Url = "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=login.login" }
 }
-$port = if ($Operator -eq "VT") { 9223 } else { 9224 }
-$profile = Join-Path $env:TEMP "delayrepay-login-$($Operator.ToLower())"
-$cookieFile = Join-Path $env:TEMP "$($Operator.ToLower())-cookies.json"
+$profile = Join-Path $env:LOCALAPPDATA "DelayRepay\browser-profiles\$($Operator.ToLower())"
+New-Item -ItemType Directory -Force $profile | Out-Null
 
 $browser = Start-Process -FilePath $chrome -ArgumentList @(
-    "--remote-debugging-port=$port", "--user-data-dir=$profile", "--no-first-run", $settings.Url
+    "--user-data-dir=$profile", "--no-first-run", $settings.Url
 ) -PassThru
 try {
     Read-Host "Log in fully in the browser, complete CAPTCHA, then press Enter here"
-    & $node (Join-Path $PSScriptRoot "export-browser-cookies.mjs") $port $settings.Domain $cookieFile
-    Assert-NativeSuccess "Cookie export"
-    if (-not (Test-Path $cookieFile)) { throw "Cookie export did not create $cookieFile." }
-    $wslCookieFile = Convert-ToWslPath $cookieFile
-    & wsl test -f $wslCookieFile
-    Assert-NativeSuccess "Windows-to-WSL cookie-file access"
-    & wsl ssh $PiHost "mkdir -p /var/lib/delayrepay/secrets && chmod 700 /var/lib/delayrepay/secrets"
-    Assert-NativeSuccess "Pi secrets-directory setup"
-    & wsl scp $wslCookieFile "${PiHost}:/var/lib/delayrepay/secrets/$($Operator.ToLower())-cookies.json"
-    Assert-NativeSuccess "Session transfer"
-    & wsl ssh $PiHost "chmod 600 /var/lib/delayrepay/secrets/$($Operator.ToLower())-cookies.json"
-    Assert-NativeSuccess "Pi session-file protection"
-    Write-Host "Saved $Operator session on the Pi."
+    Write-Host "Saved $Operator session in the private laptop browser profile."
 } finally {
-    Remove-Item -LiteralPath $cookieFile -Force -ErrorAction SilentlyContinue
     Stop-Process -Id $browser.Id -Force -ErrorAction SilentlyContinue
 }

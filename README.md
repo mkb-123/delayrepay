@@ -90,7 +90,7 @@ Use **Update data** to preview and run either operation from the dashboard:
 
 Both run in the background with visible progress and share the same collection lock and RTT rate-limit backoff as the CLI.
 
-`Claim this train` adds that exact journey to the Raspberry Pi submission queue and starts the worker immediately. The first claim for each operator runs in calibration mode: the form is completed but stops before its final submit button, and the dashboard shows a screenshot. After you approve that form once, later selected claims can submit automatically. The five-minute timer is a fallback for interrupted runs. `Mark as already claimed` remains a manual acknowledgement for claims submitted elsewhere.
+`Claim this train` adds that exact journey to the Raspberry Pi submission queue. A private worker on the Windows laptop checks that queue through an SSH tunnel and uses local Chrome. The first claim for each operator runs in calibration mode: the form is completed but stops before its final submit button, and the dashboard shows a screenshot. After you approve that form once, later selected claims can submit automatically. `Mark as already claimed` remains a manual acknowledgement for claims submitted elsewhere.
 
 The queue is deliberately journey-specific: select only the train actually travelled on. If an operator login expires, CAPTCHA appears, or the form changes, the item becomes **Login needed** or **Check needed** instead of being guessed or submitted twice.
 
@@ -208,53 +208,33 @@ dashboard address is `http://delayrepay.local`.
 
 ### Enable automatic claims
 
-The Pi installer installs Chromium, Playwright, a claim-worker timer, and a daily operator-session health check. Log in
-to each operator once from a graphical Pi session or VNC terminal:
-
-```bash
-cd ~/delayrepay
-.venv/bin/delayrepay claim-login --operator VT
-.venv/bin/delayrepay claim-login --operator LM
-```
-
-On a Windows laptop, the faster setup avoids VNC entirely. From PowerShell in
-the repository, run the following once for each operator. A normal local Chrome
-window opens; after login and CAPTCHA, the script transfers only that site's
-session cookies to the protected Pi secrets directory:
+Browser automation runs on the Windows laptop because Chromium is too heavy
+for the Pi. From PowerShell in the repository, install the dependency, log in
+once to each operator, and install the ten-minute queue check:
 
 ```powershell
+npm install
 .\scripts\windows\claim-login.ps1 -Operator VT
 .\scripts\windows\claim-login.ps1 -Operator LM
+.\scripts\windows\setup-claim-worker.ps1
 ```
 
 Complete any CAPTCHA and confirm that the season ticket and preferred payment
-method are saved in each account. Close neither browser manually: return to the
-terminal and press Enter so Playwright saves the session cleanly. Sessions live
-under `/var/lib/delayrepay/browser-profiles`, outside Git.
+method are saved in each account. Return to the terminal and press Enter so the
+session is saved under `%LOCALAPPDATA%\DelayRepay\browser-profiles`, outside Git.
+Run a queue check immediately with:
 
-For a headless Pi that is only accessible through SSH, open a tunnel from the
-computer running SSH:
-
-```bash
-ssh -L 6080:127.0.0.1:6080 bhakta-pi@pi.local
-cd ~/delayrepay
-./scripts/linux/claim-login-vnc.sh VT
+```powershell
+.\scripts\windows\run-claim-worker.ps1
 ```
 
-Open `http://localhost:6080/vnc.html`, complete the login, then return to the
-SSH terminal and press Enter. Repeat the command with `LM`. The temporary
-browser is reachable only through the SSH tunnel and closes with the command.
-
-Run the queue immediately or inspect its log with:
-
-```bash
-sudo systemctl start delayrepay-claim-worker.service
-journalctl -u delayrepay-claim-worker.service -n 100
-```
+The runner opens an SSH tunnel to Pi localhost, processes at most five queued
+claims, and closes the tunnel. The private worker API is not exposed through
+nginx or the home network.
 
 The worker never searches for claims itself. It processes only journeys marked
 **Claim this train** in the dashboard. A CAPTCHA or expired session requires
-running `claim-login` again.
+running the Windows login script again.
 
 ## Claims and rules
 

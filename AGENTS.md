@@ -96,3 +96,52 @@ Use the scripts and full rebuild procedure in `deploy/raspberry-pi/`. Do not
 manually alter Pi systemd configuration when the same change belongs in the
 repository's install or update scripts.
 
+## Deploying and restarting the Raspberry Pi UI
+
+The Pi checkout is `~/delayrepay`, the live data directory is
+`/var/lib/delayrepay`, the Flask service is `delayrepay.service`, and nginx
+publishes it as `http://delayrepay.local`. A `git pull` alone does not update
+the running UI because the Python process must be restarted.
+
+Use this sequence after verified changes:
+
+1. Commit the complete change locally and push `main` to GitHub.
+2. From Windows, use the WSL SSH key. Do not use Windows `ssh.exe`:
+
+   ```powershell
+   wsl ssh bhakta-pi@pi.local
+   ```
+
+3. On the Pi, deploy with the checked-in updater:
+
+   ```bash
+   cd ~/delayrepay
+   ./deploy/raspberry-pi/update.sh
+   ```
+
+   Use `./deploy/raspberry-pi/update.sh --full` when `deploy/`, Linux setup
+   scripts, systemd units, nginx configuration, dependencies, or installation
+   behavior changed. The updater makes a database backup before pulling code.
+4. Confirm the exact deployed commit and restart state:
+
+   ```bash
+   git rev-parse --short HEAD
+   sudo systemctl restart delayrepay.service
+   sudo systemctl is-active delayrepay.service nginx.service
+   curl --fail --silent http://127.0.0.1:8765/health
+   curl --fail --silent http://127.0.0.1/health
+   ```
+
+5. If the UI still appears stale, inspect the service before changing code:
+
+   ```bash
+   sudo journalctl -u delayrepay.service -n 100 --no-pager
+   sudo nginx -t
+   ```
+
+Do not overwrite `/var/lib/delayrepay`, copy the tracked development database
+over the live database, or run `git reset --hard` on the Pi. If the updater
+reports local Pi edits, inspect and preserve them before continuing. Report the
+deployed commit, service state, and both health-check results when deployment
+finishes.
+

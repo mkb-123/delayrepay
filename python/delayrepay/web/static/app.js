@@ -308,8 +308,8 @@ async function postAction(url, success) {
 }
 function confirmCalibration(encodedId) { return postAction(`/api/services/${encodedId}/submission/confirm-calibration`, "Submission approved and queued."); }
 function retrySubmission(encodedId) { return postAction(`/api/services/${encodedId}/submission/retry`, "Claim queued again."); }
-function runWorkerNow() { return postAction("/api/claim-worker/run", "Claim worker started."); }
-function checkSessions() { return postAction("/api/operator-sessions/check", "Account checks started."); }
+function runWorkerNow() { return postAction("/api/claim-worker/run", "Start the private worker on the Windows laptop."); }
+function checkSessions() { return postAction("/api/operator-sessions/check", "Account checks run on the Windows laptop."); }
 
 async function copyReference(value) {
   await navigator.clipboard.writeText(value);

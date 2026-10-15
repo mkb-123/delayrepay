@@ -8,8 +8,6 @@ This setup targets Raspberry Pi OS or another Debian-based distribution with sys
 - `delayrepay-collect.timer`: ten-day refresh at 19:00 Monday–Friday;
 - `delayrepay-email.timer`: outstanding-claims email at 09:00 Saturday;
 - `delayrepay-reconcile.timer`: read-only Gmail claim reconciliation at 20:00 daily;
-- `delayrepay-claim-worker.timer`: checks every five minutes for journeys explicitly selected in the dashboard;
-- `delayrepay-claim-session.timer`: checks both saved operator sessions each morning;
 - `delayrepay-backup.timer`: consistent SQLite backup at 02:30 daily, retaining 30;
 - Avahi/mDNS access at `http://delayrepay.local` through Nginx;
 - runtime SQLite and catalogue files in `/var/lib/delayrepay`, separate from Git.
@@ -27,7 +25,8 @@ preserved in a private recovery bundle containing:
 - the discovered service catalogue;
 - `.env` and RTT/email settings;
 - Gmail OAuth client and token files, when configured.
-- authenticated operator browser profiles used to access saved season tickets.
+- Gmail authorization files, when configured. Operator browser profiles remain
+  on the Windows laptop and are not part of the Pi recovery bundle.
 
 Store that bundle on encrypted removable storage or a private NAS. This
 repository only rebuilds Delay Repay. Home Assistant and any other software on
@@ -139,55 +138,20 @@ scope is read-only and does not change Gmail messages.
 
 ### Operator account authorization
 
-Store the account credentials outside Git:
-
-```dotenv
-# /var/lib/delayrepay/secrets/operator-accounts.env (mode 0600)
-AVANTI_DELAY_REPAY_EMAIL=you@example.com
-AVANTI_DELAY_REPAY_PASSWORD=your-password
-LNR_DELAY_REPAY_EMAIL=you@example.com
-LNR_DELAY_REPAY_PASSWORD=your-password
-```
-
-The worker uses them only when the saved session needs ordinary
-reauthentication. CAPTCHA or additional verification still pauses the claim.
-
-From the Raspberry Pi desktop, or a VNC session with a graphical display, run:
-
-```bash
-cd ~/delayrepay
-.venv/bin/delayrepay claim-login --operator VT
-.venv/bin/delayrepay claim-login --operator LM
-```
-
-Log into each Delay Repay account, complete any CAPTCHA, and confirm the saved
-season ticket and compensation preference. Return to the terminal and press
-Enter to save the browser profile. The worker uses those sessions and will stop
-with `NEEDS_LOGIN` when one expires; it never stores account passwords in Git.
-
-If the Pi has no attached desktop, reconnect with a local port forward:
-
-```bash
-ssh -L 6080:127.0.0.1:6080 bhakta-pi@pi.local
-cd ~/delayrepay
-./scripts/linux/claim-login-vnc.sh VT
-```
-
-Open `http://localhost:6080/vnc.html` on the computer running SSH. Finish the
-login and press Enter in the terminal, then repeat with `LM`. noVNC binds only
-to `127.0.0.1` on the Pi, so it is not exposed to the home network or internet.
-
-For a faster login from Windows, use a normal laptop browser instead of VNC:
+Claims are driven by Chrome on the Windows laptop. Install dependencies, log
+in once to each operator, then install the queue check:
 
 ```powershell
+npm install
 .\scripts\windows\claim-login.ps1 -Operator VT
 .\scripts\windows\claim-login.ps1 -Operator LM
+.\scripts\windows\setup-claim-worker.ps1
 ```
 
-Each command opens Chrome or Edge locally, waits for you to finish login and
-CAPTCHA, then copies only the relevant session cookies over SSH to
-`/var/lib/delayrepay/secrets`. Cookie exports are deleted from the laptop's
-temporary directory after transfer and are never stored in Git.
+Sessions remain in `%LOCALAPPDATA%\DelayRepay\browser-profiles`. The scheduled
+worker opens an SSH tunnel to Pi localhost, processes the private queue, and
+closes the tunnel. Chromium and operator credentials are not installed on the
+Pi.
 
 On the first installation, the script copies the repository's existing SQLite database and catalogue into `/var/lib/delayrepay`. Later Git pulls do not overwrite live claim history.
 
@@ -200,7 +164,7 @@ The Pi owns live state that Git does not contain, all under
 `/var/lib/delayrepay` (outside the checkout, so `git pull` cannot touch it):
 
 - `delayrepay.sqlite`: claim history, acknowledgements, lifecycle, submissions;
-- `secrets/`, `browser-profiles/`: Gmail OAuth, operator sessions;
+- `secrets/`: Gmail OAuth and other Pi-only secrets;
 - `backups/`, `claim-screenshots/`, `output/`, `logs/`;
 - `~/delayrepay/.env`: credentials (ignored by Git).
 
@@ -239,13 +203,14 @@ systemctl list-timers 'delayrepay-*'
 sudo systemctl start delayrepay-collect.service
 sudo systemctl start delayrepay-email.service
 sudo systemctl start delayrepay-reconcile.service
-sudo systemctl start delayrepay-claim-worker.service
 sudo systemctl start delayrepay-backup.service
 journalctl -u delayrepay.service -n 100
 journalctl -u delayrepay-collect.service -n 100
 journalctl -u delayrepay-reconcile.service -n 100
-journalctl -u delayrepay-claim-worker.service -n 100
 ```
+
+Run the claim queue from the Windows checkout with
+`scripts\windows\run-claim-worker.ps1`.
 
 The first queued claim for Avanti and the first for LNR stop at the final form
 confirmation and save a screenshot. Review it in the dashboard and choose

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import base64
 import logging
 import os
 from pathlib import Path
@@ -16,20 +17,10 @@ from ..operations import collection_plan, discovery_plan
 from ..storage.sqlite import Database
 from ..workflows import build_report_data, collect, discover, set_claim
 from ..workflows import _now
-from ..claiming.worker import check_sessions, run as run_claim_worker
 
 LOGGER = logging.getLogger("delayrepay.web")
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
-
-
-def _run_claims(root: Path) -> None:
-    try:
-        run_claim_worker(root)
-    except RuntimeError:
-        LOGGER.info("Claim worker already running")
-    except Exception:
-        LOGGER.exception("Claim worker failed")
 
 
 def _job_update(job_id: str, **values: Any) -> None:
@@ -95,6 +86,13 @@ def _require_same_origin() -> None:
     expected = request.host_url.rstrip("/")
     if not origin or origin.rstrip("/") != expected:
         raise PermissionError("The request origin does not match this dashboard.")
+
+
+def _require_loopback_worker() -> None:
+    if request.remote_addr not in {"127.0.0.1", "::1"}:
+        raise PermissionError("The laptop worker API is available only through a localhost SSH tunnel.")
+    if not request.is_json:
+        raise ValueError("A JSON request body is required.")
 
 
 def create_app(root: Path | str | None = None) -> Flask:
@@ -262,8 +260,7 @@ def create_app(root: Path | str | None = None) -> Flask:
                 raise ValueError("This journey already has an operator claim.")
             mode = "SUBMIT" if database.operator_calibrated(service["operatorCode"]) else "CALIBRATE"
             database.queue_claim_submission(service_id, service["operatorCode"], _now(), mode)
-        threading.Thread(target=_run_claims, args=(data_root,), daemon=True).start()
-        message = "Submitting on the Raspberry Pi." if mode == "SUBMIT" else "Opening the form in calibration mode; it will stop before submission."
+        message = "Queued for the laptop claim worker." if mode == "SUBMIT" else "Queued for laptop calibration; it will stop before submission."
         return jsonify({"status": "QUEUED", "mode": mode, "message": message})
 
     @app.post("/api/services/<path:service_id>/submission/confirm-calibration")
@@ -278,8 +275,7 @@ def create_app(root: Path | str | None = None) -> Flask:
                 raise ValueError("This claim is not waiting for calibration confirmation.")
             database.set_operator_calibrated(service["operatorCode"], _now())
             database.queue_claim_submission(service_id, service["operatorCode"], _now(), "SUBMIT")
-        threading.Thread(target=_run_claims, args=(data_root,), daemon=True).start()
-        return jsonify({"status": "QUEUED", "message": "Calibration approved; submitting this claim now."})
+        return jsonify({"status": "QUEUED", "message": "Calibration approved; queued for the laptop worker."})
 
     @app.post("/api/services/<path:service_id>/submission/retry")
     def retry_submission(service_id: str):
@@ -291,27 +287,62 @@ def create_app(root: Path | str | None = None) -> Flask:
                 return jsonify({"error": "Queued claim not found"}), 404
             mode = submission.get("mode") or ("SUBMIT" if database.operator_calibrated(service["operatorCode"]) else "CALIBRATE")
             database.queue_claim_submission(service_id, service["operatorCode"], _now(), mode)
-        threading.Thread(target=_run_claims, args=(data_root,), daemon=True).start()
-        return jsonify({"status": "QUEUED", "message": "Retry started."})
+        return jsonify({"status": "QUEUED", "message": "Queued for the laptop worker."})
 
     @app.post("/api/claim-worker/run")
     def run_worker_now():
         _require_same_origin()
-        threading.Thread(target=_run_claims, args=(data_root,), daemon=True).start()
-        return jsonify({"status": "STARTED", "message": "Claim worker started."})
+        return jsonify({"status": "WAITING", "message": "The claim is queued. Start the private worker on the Windows laptop."})
 
     @app.post("/api/operator-sessions/check")
     def check_operator_sessions():
         _require_same_origin()
-        def task():
-            try:
-                check_sessions(data_root)
-            except RuntimeError:
-                LOGGER.info("Browser worker already running")
-            except Exception:
-                LOGGER.exception("Operator session check failed")
-        threading.Thread(target=task, daemon=True).start()
-        return jsonify({"status": "STARTED", "message": "Operator login check started."})
+        return jsonify({"status": "WAITING", "message": "Session checks run on the Windows laptop."})
+
+    @app.post("/api/private-worker/next")
+    def private_worker_next():
+        _require_loopback_worker()
+        with Database(data_root) as database:
+            item = database.lease_claim_submission(_now())
+        if not item:
+            return jsonify({"job": None})
+        return jsonify({"job": {
+            "serviceId": item["service_id"], "operatorCode": item["operator_code"],
+            "mode": item.get("mode") or "CALIBRATE", "service": item["service"],
+        }})
+
+    @app.post("/api/private-worker/result")
+    def private_worker_result():
+        _require_loopback_worker()
+        payload = request.get_json() or {}
+        service_id = payload.get("serviceId", "")
+        state = payload.get("state", "")
+        if state not in {"CALIBRATION_READY", "SUBMITTED", "NEEDS_LOGIN", "NEEDS_ATTENTION"}:
+            raise ValueError("Unsupported worker result state.")
+        with Database(data_root) as database:
+            submission = database.claim_submission(service_id)
+            if not submission or submission["state"] != "PROCESSING":
+                raise ValueError("This claim job is not leased to a worker.")
+            screenshot_name = None
+            encoded = payload.get("screenshotBase64")
+            if encoded:
+                content = base64.b64decode(encoded, validate=True)
+                if len(content) > 5_000_000 or not content.startswith(b"\x89PNG\r\n\x1a\n"):
+                    raise ValueError("Invalid worker screenshot.")
+                screenshot_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in service_id) + ".png"
+                target = data_root / "claim-screenshots" / screenshot_name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+            if state == "SUBMITTED":
+                database.record_submitted_claim(service_id, submission["operator_code"], _now(), payload.get("reference"))
+            else:
+                database.update_claim_submission(service_id, state, _now(), finished=True,
+                    error=payload.get("error"), last_step=payload.get("lastStep"), screenshot_path=screenshot_name)
+            if state == "NEEDS_LOGIN":
+                database.set_operator_session(submission["operator_code"], "LOGIN_NEEDED", _now(), payload.get("error") or "Login required.")
+            elif state in {"CALIBRATION_READY", "SUBMITTED"}:
+                database.set_operator_session(submission["operator_code"], "LOGIN_OK", _now(), "Laptop browser session opened successfully.")
+        return jsonify({"status": state})
 
     @app.get("/api/claim-screenshots/<path:filename>")
     def claim_screenshot(filename: str):

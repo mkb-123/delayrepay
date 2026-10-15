@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "scripts": { "claim-worker": "node scripts/windows/claim-worker.mjs" },
+  "dependencies": { "playwright-core": "^1.55.0" }
+}

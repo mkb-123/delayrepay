@@ -336,6 +336,32 @@ class Database:
         """, (limit,)).fetchall()
         return [{**dict(row), "service": json.loads(row["payload_json"])} for row in rows]
 
+    def lease_claim_submission(self, leased_at: str) -> dict[str, Any] | None:
+        """Atomically reserve the oldest job for the laptop browser worker."""
+        with self.connection:
+            row = self.connection.execute("""
+                SELECT q.service_id
+                FROM claim_submissions q
+                WHERE q.state IN ('QUEUED', 'RETRY')
+                ORDER BY q.queued_at LIMIT 1
+            """).fetchone()
+            if not row:
+                return None
+            changed = self.connection.execute("""
+                UPDATE claim_submissions SET state='PROCESSING', updated_at=?,
+                    started_at=?, finished_at=NULL, attempt_count=attempt_count + 1,
+                    last_error=NULL
+                WHERE service_id=? AND state IN ('QUEUED', 'RETRY')
+            """, (leased_at, leased_at, row["service_id"])).rowcount
+            if not changed:
+                return None
+            job = self.connection.execute("""
+                SELECT q.*, s.payload_json
+                FROM claim_submissions q JOIN services s ON s.service_id=q.service_id
+                WHERE q.service_id=?
+            """, (row["service_id"],)).fetchone()
+        return {**dict(job), "service": json.loads(job["payload_json"])}
+
     def update_claim_submission(
         self, service_id: str, state: str, updated_at: str, *, claim_reference: str | None = None,
         error: str | None = None, started: bool = False, finished: bool = False,
@@ -388,7 +414,7 @@ class Database:
         self.update_claim_submission(
             service_id, "SUBMITTED", submitted_at, claim_reference=claim_reference, finished=True,
         )
-        explanation = "Submitted automatically through the operator portal on the Raspberry Pi."
+        explanation = "Submitted automatically through the operator portal by the private laptop worker."
         with self.connection:
             self.connection.execute("""
                 INSERT INTO claim_lifecycle(
