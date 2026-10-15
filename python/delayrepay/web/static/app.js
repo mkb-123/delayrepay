@@ -219,7 +219,9 @@ function renderRecommendations() {
         continue;
       }
       const claim = claimDisplay(item);
-      const assessmentLabel = item.likelyRejected ? "Likely rejected" : item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "Marked claimed" : "Decide";
+      const cancelled = /cancelled/i.test(item.explanation || ""), noArrival = /not recorded/i.test(item.explanation || "");
+      const assessmentLabel = item.likelyRejected ? "Likely rejected" : item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "Marked claimed"
+        : cancelled ? "Cancelled · was this yours?" : noArrival ? "No arrival time from RTT yet" : "Decide";
       const label = claim.label || assessmentLabel;
       // A journey that has already run but has no timing data cannot be claimed reliably: flag it.
       const noData = item.effectiveDelayMinutes == null && !item.claimLifecycle && !/cancelled/i.test(item.explanation || "") && Date.parse(item.scheduledDeparture) < Date.now() - 2 * 3600000;
@@ -227,7 +229,7 @@ function renderRecommendations() {
       const preference = item.preferredClaimedTime ? " · claimed time" : "";
       const left = deadlineText(day.date);
       const urgent = daysLeft(day.date) <= 5 ? " urgent" : "";
-      const canClaim = ["POTENTIAL", "NEEDS_REVIEW"].includes(item.status) && !item.claimLifecycle && !item.claimSubmission && !item.likelyRejected;
+      const canClaim = ["POTENTIAL", "NEEDS_REVIEW"].includes(item.status) && !item.claimLifecycle && !item.claimSubmission && !item.likelyRejected && !noArrival;
       const quick = canClaim ? `<button class="quick-claim" onclick="quickClaim(this, '${encodeURIComponent(item.serviceId)}')">Claim</button>` : "";
       html += `<div class="recommend-row ${item.status}${item.likelyRejected ? " likely-rejected" : ""} claim-state-${claim.state}"><button class="row-main" onclick="showService('${encodeURIComponent(item.serviceId)}')"><strong>${route} · ${clock(item.scheduledDeparture)}</strong><span>${esc(item.operatorName)} · ${detail}${preference}</span>${claim.badge}<small class="deadline${urgent}">${left}</small></button>${quick}</div>`;
     }
