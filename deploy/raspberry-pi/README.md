@@ -237,7 +237,7 @@ install, restore, update, or reboot.
 
 ## Password-free code updates
 
-`update.sh` needs root for one thing: restarting `delayrepay.service`. Allow just that once
+`update.sh` restarts the dashboard by stopping its own process (the unit has `Restart=always`), so code-only updates need no sudo once the unit is installed. If you prefer an explicit root restart, allow just that once
 (this asks for your sudo password a single time):
 
 ```bash

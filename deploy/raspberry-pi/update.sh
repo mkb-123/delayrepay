@@ -48,7 +48,13 @@ if [[ "${1:-}" == "--full" ]] || ! git diff --quiet "$old_head" "$new_head" -- d
   "$repo_dir/deploy/raspberry-pi/install.sh"
 else
   "$repo_dir/.venv/bin/pip" install -q -e "$repo_dir"
-  sudo systemctl restart delayrepay.service
+  # The unit runs as this user with Restart=always, so stopping its process restarts it with the new
+  # code and needs no sudo. Older units (on-failure) fall back to a sudo restart.
+  if [[ "$(systemctl show -p Restart --value delayrepay.service)" == "always" ]]; then
+    kill "$(systemctl show -p MainPID --value delayrepay.service)"
+  else
+    sudo systemctl restart delayrepay.service
+  fi
 fi
 sleep 3
 "$repo_dir/deploy/raspberry-pi/verify.sh"

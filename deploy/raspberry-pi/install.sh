@@ -48,7 +48,8 @@ WorkingDirectory=$repo_dir
 EnvironmentFile=$repo_dir/.env
 Environment=DELAYREPAY_REPO_DIR=$repo_dir
 ExecStart=$repo_dir/.venv/bin/python -m delayrepay serve --host 0.0.0.0 --port 8765
-Restart=on-failure
+# always (not on-failure) so update.sh can restart the dashboard by stopping its own process, no sudo
+Restart=always
 RestartSec=5
 
 [Install]
