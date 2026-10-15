@@ -86,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     load_env()
     args = parser().parse_args(argv)
     root = data_dir()
+    load_env(root / "secrets" / "operator-accounts.env")
     try:
         if args.command == "discover":
             direction = args.direction.upper()

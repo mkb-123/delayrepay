@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,7 @@ def login(root: Path, operator_code: str) -> None:
         )
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(PORTALS[operator_code], wait_until="domcontentloaded")
+        _fill_credentials(page, operator_code)
         input("Log in, complete any CAPTCHA, confirm the saved season ticket, then press Enter here...")
         context.close()
 
@@ -90,6 +92,37 @@ def _looks_logged_out(page: Any) -> bool:
     )
 
 
+def _fill_credentials(page: Any, operator_code: str) -> bool:
+    prefix = "AVANTI" if operator_code == "VT" else "LNR"
+    email = os.environ.get(f"{prefix}_DELAY_REPAY_EMAIL", "").strip()
+    password = os.environ.get(f"{prefix}_DELAY_REPAY_PASSWORD", "")
+    if not email or not password:
+        return False
+    email_field = page.get_by_label(re.compile(r"email(?: address)?", re.I)).first
+    password_field = page.get_by_label(re.compile(r"password", re.I)).first
+    if not email_field.count() or not password_field.count():
+        return False
+    email_field.fill(email)
+    password_field.fill(password)
+    return True
+
+
+def _attempt_login(page: Any, operator_code: str) -> None:
+    if not _looks_logged_out(page):
+        return
+    if not _fill_credentials(page, operator_code):
+        raise LoginRequired(f"{operator_code} credentials are missing from operator-accounts.env.")
+    if page.get_by_text(re.compile(r"complete the recaptcha", re.I)).count():
+        raise LoginRequired(f"{operator_code} requires CAPTCHA. Run claim-login for this operator.")
+    button = page.get_by_role("button", name=re.compile(r"log in|sign in", re.I)).first
+    if not button.count() or not button.is_visible():
+        raise LoginRequired(f"{operator_code} login form could not be submitted automatically.")
+    button.click()
+    page.wait_for_load_state("domcontentloaded")
+    if _looks_logged_out(page):
+        raise LoginRequired(f"{operator_code} login was not accepted or needs additional verification.")
+
+
 def submit(root: Path, service: dict[str, Any]) -> SubmissionResult:
     operator_code = service["operatorCode"]
     if operator_code not in PORTALS:
@@ -104,8 +137,7 @@ def submit(root: Path, service: dict[str, Any]) -> SubmissionResult:
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(PORTALS[operator_code], wait_until="domcontentloaded", timeout=60_000)
-            if _looks_logged_out(page):
-                raise LoginRequired(f"{service['operatorName']} login has expired. Run claim-login for {operator_code}.")
+            _attempt_login(page, operator_code)
 
             departure = service["scheduledDeparture"]
             arrival = service.get("actualArrival") or service.get("scheduledArrival")

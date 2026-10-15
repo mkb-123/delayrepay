@@ -138,6 +138,19 @@ scope is read-only and does not change Gmail messages.
 
 ### Operator account authorization
 
+Store the account credentials outside Git:
+
+```dotenv
+# /var/lib/delayrepay/secrets/operator-accounts.env (mode 0600)
+AVANTI_DELAY_REPAY_EMAIL=you@example.com
+AVANTI_DELAY_REPAY_PASSWORD=your-password
+LNR_DELAY_REPAY_EMAIL=you@example.com
+LNR_DELAY_REPAY_PASSWORD=your-password
+```
+
+The worker uses them only when the saved session needs ordinary
+reauthentication. CAPTCHA or additional verification still pauses the claim.
+
 From the Raspberry Pi desktop, or a VNC session with a graphical display, run:
 
 ```bash
