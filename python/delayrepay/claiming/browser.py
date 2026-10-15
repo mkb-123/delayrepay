@@ -12,7 +12,8 @@ from typing import Any
 class OperatorAdapter:
     code: str
     version: str
-    portal: str
+    login_portal: str
+    claim_portal: str
     date_labels: tuple[str, ...]
     origin_labels: tuple[str, ...]
     destination_labels: tuple[str, ...]
@@ -21,8 +22,8 @@ class OperatorAdapter:
 
 
 ADAPTERS = {
-    "VT": OperatorAdapter("VT", "avanti-2026-10", "https://delayrepay.avantiwestcoast.co.uk/", (r"date.*journey", r"travel date", r"departure date"), (r"from", r"origin", r"departure station"), (r"to", r"destination", r"arrival station"), (r"scheduled departure", r"departure time"), (r"actual arrival", r"arrival time")),
-    "LM": OperatorAdapter("LM", "lnr-2026-10", "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=myclaims.add", (r"date.*journey", r"travel date", r"departure date"), (r"from", r"origin", r"departure station"), (r"to", r"destination", r"arrival station"), (r"scheduled departure", r"departure time"), (r"actual arrival", r"arrival time")),
+    "VT": OperatorAdapter("VT", "avanti-2026-10", "https://delayrepay.avantiwestcoast.co.uk/", "https://delayrepay.avantiwestcoast.co.uk/", (r"date.*journey", r"travel date", r"departure date"), (r"from", r"origin", r"departure station"), (r"to", r"destination", r"arrival station"), (r"scheduled departure", r"departure time"), (r"actual arrival", r"arrival time")),
+    "LM": OperatorAdapter("LM", "lnr-2026-10", "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=login.login", "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=myclaims.add", (r"date.*journey", r"travel date", r"departure date"), (r"from", r"origin", r"departure station"), (r"to", r"destination", r"arrival station"), (r"scheduled departure", r"departure time"), (r"actual arrival", r"arrival time")),
 }
 
 
@@ -70,7 +71,7 @@ def login(root: Path, operator_code: str) -> None:
             str(profile_dir(root, operator_code)), headless=False, **_launch_options(),
         )
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto(ADAPTERS[operator_code].portal, wait_until="domcontentloaded")
+        page.goto(ADAPTERS[operator_code].login_portal, wait_until="domcontentloaded")
         _fill_credentials(page, operator_code)
         input("Log in, complete any CAPTCHA, confirm the saved season ticket, then press Enter here...")
         context.close()
@@ -158,7 +159,7 @@ def check_session(root: Path, operator_code: str) -> tuple[str, str]:
         )
         page = context.pages[0] if context.pages else context.new_page()
         try:
-            page.goto(adapter.portal, wait_until="domcontentloaded", timeout=60_000)
+            page.goto(adapter.login_portal, wait_until="domcontentloaded", timeout=60_000)
             _attempt_login(page, operator_code)
             return "LOGIN_OK", "Operator account opened successfully."
         except LoginRequired as error:
@@ -182,8 +183,10 @@ def submit(root: Path, service: dict[str, Any], mode: str = "CALIBRATE") -> Subm
         )
         page = context.pages[0] if context.pages else context.new_page()
         try:
-            page.goto(adapter.portal, wait_until="domcontentloaded", timeout=60_000)
+            page.goto(adapter.login_portal, wait_until="domcontentloaded", timeout=60_000)
             _attempt_login(page, operator_code)
+            if adapter.claim_portal != adapter.login_portal:
+                page.goto(adapter.claim_portal, wait_until="domcontentloaded", timeout=60_000)
 
             departure = service["scheduledDeparture"]
             arrival = service.get("actualArrival") or service.get("scheduledArrival")
