@@ -142,6 +142,10 @@ def parse_claim(sender: str, subject: str, text: str) -> ParsedClaim | None:
 
 
 def _match_service(database: Database, claim: ParsedClaim) -> tuple[str | None, str]:
+    if claim.claim_reference:
+        recorded = database.service_id_for_reference(claim.claim_reference)
+        if recorded:
+            return recorded, f"Matched by claim reference {claim.claim_reference} recorded when the claim was submitted."
     if not claim.travel_date or not claim.departure_time or not claim.origin or not claim.destination:
         return None, "Email lacks a complete travel date, departure time, or route."
     candidates = database.services_between(claim.travel_date, claim.travel_date)

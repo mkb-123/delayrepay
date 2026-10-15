@@ -218,6 +218,15 @@ class Database:
                 ON CONFLICT(key) DO UPDATE SET value=excluded.value
             """, (key, value))
 
+    def service_id_for_reference(self, claim_reference: str) -> str | None:
+        """The service whose claim we recorded under this operator reference, when exactly one."""
+        rows = self.connection.execute(
+            "SELECT service_id FROM claim_lifecycle WHERE claim_reference=? "
+            "UNION SELECT service_id FROM claim_submissions WHERE claim_reference=?",
+            (claim_reference, claim_reference),
+        ).fetchall()
+        return rows[0]["service_id"] if len(rows) == 1 else None
+
     def recorded_claims_on_date(self, operator_code: str, service_date: str) -> int:
         """Claims already recorded for this operator and travel date, for the portal duplicate guard."""
         row = self.connection.execute("""
