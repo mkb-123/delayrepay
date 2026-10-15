@@ -109,3 +109,30 @@ window and rerun the worker. Normal browsing in another Chrome profile is fine.
 If a session expires, rerun `claim-login.ps1` for that operator. Passwords are
 entered only on the operator website and are never stored by this repository.
 
+
+## Automatic re-login (recommended)
+
+Portal sessions expire after a short idle time (LNR within about an hour). Store each
+account login once so the worker signs back in by itself:
+
+```powershell
+.\scripts\windows\set-operator-credentials.ps1 -Operator LM
+.\scripts\windows\set-operator-credentials.ps1 -Operator VT
+```
+
+The password is typed hidden and saved to `%LOCALAPPDATA%\DelayRepay\secrets\operator-accounts.env`,
+readable only by your Windows account. It never goes to Git, the Pi or any AI. When a
+session has lapsed the worker signs in with it, then claims as normal. If the portal shows a
+CAPTCHA the job is marked **NEEDS_LOGIN** and you run `claim-login.ps1` for that operator.
+
+The worker also visits each portal once a day and reports whether you are signed in, so an
+expired login shows on the dashboard before a claim fails.
+
+## Recording claims made outside the worker
+
+Claims submitted by hand or in an agent's browser must still reach the Pi database, or the
+worker could claim them again:
+
+```powershell
+.\scripts\windows\record-claims.ps1 VT:2026-10-12:06:59:AWC-3944-187-759 LM:2026-09-30:17:26:LNR/DR/20261016/BDHX
+```

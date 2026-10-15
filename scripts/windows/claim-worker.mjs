@@ -42,6 +42,40 @@ const adapters = {
   },
 };
 
+// Optional automatic re-login. Credentials live only in a local file you create with
+// set-operator-credentials.ps1 (never in Git, never sent to the Pi). Without them, or if the
+// portal shows a CAPTCHA, the job is reported NEEDS_LOGIN as before.
+const credentialKeys = { LM: ["LNR_DELAY_REPAY_EMAIL", "LNR_DELAY_REPAY_PASSWORD"], VT: ["AVANTI_DELAY_REPAY_EMAIL", "AVANTI_DELAY_REPAY_PASSWORD"] };
+const loginUrls = { LM: "https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=login.login", VT: "https://delayrepay.avantiwestcoast.co.uk/en/login" };
+async function credentialsFor(code) {
+  const file = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "DelayRepay", "secrets", "operator-accounts.env");
+  let text = "";
+  try { text = await fs.readFile(file, "utf8"); } catch { return null; }
+  const values = Object.fromEntries(text.split(/\r?\n/).map(l => l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/)).filter(Boolean).map(m => [m[1], m[2].replace(/^["']|["']$/g, "")]));
+  const [emailKey, passwordKey] = credentialKeys[code];
+  return values[emailKey] && values[passwordKey] ? { email: values[emailKey], password: values[passwordKey] } : null;
+}
+async function ensureLoggedIn(page, code) {
+  const adapter = adapters[code];
+  await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForTimeout(2500);
+  if (await adapter.loggedIn(page)) return true;
+  const creds = await credentialsFor(code);
+  if (!creds) return false;
+  await page.goto(loginUrls[code], { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForTimeout(2500);
+  const email = page.locator('#emailadd, input[type="email"], input[name*="mail" i], input[formcontrolname*="mail" i]').first();
+  const password = page.locator('input[type="password"]').first();
+  if (!await email.count() || !await password.count()) return false;
+  await email.fill(creds.email); await password.fill(creds.password);
+  await page.getByRole("button", { name: /^\s*(log ?in|sign ?in|continue)\s*$/i }).first().click();
+  await page.waitForTimeout(5000);
+  if (await page.locator('iframe[src*="recaptcha/api2/bframe"]').first().isVisible().catch(() => false)) return false; // CAPTCHA challenge
+  await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForTimeout(2500);
+  return adapter.loggedIn(page);
+}
+
 async function post(route, body = {}) {
   const response = await fetch(api + route, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!response.ok) throw new Error(`${route}: ${response.status} ${await response.text()}`);
@@ -67,9 +101,7 @@ async function processJob(job) {
   const page = context.pages()[0] || await context.newPage();
   let submitStarted = false;
   try {
-    await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(2500);
-    if (!await adapter.loggedIn(page)) {
+    if (!await ensureLoggedIn(page, job.operatorCode)) {
       await post("/api/private-worker/result", { serviceId: job.serviceId, state: "NEEDS_LOGIN", error: `Log in to ${job.operatorCode} with claim-login.ps1.` });
       return;
     }
@@ -116,9 +148,7 @@ async function keepAlive() {
     try { await fs.access(path.join(base, "browser-profiles", code.toLowerCase())); } catch { continue; }
     try {
       const page = (await contextFor(code)).pages()[0] || await (await contextFor(code)).newPage();
-      await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
-      await page.waitForTimeout(2500);
-      const ok = await adapter.loggedIn(page);
+      const ok = await ensureLoggedIn(page, code);
       await post("/api/private-worker/session", { operatorCode: code, status: ok ? "LOGIN_OK" : "LOGIN_NEEDED", explanation: ok ? "Daily keep-alive visit succeeded." : "Session expired. Run claim-login.ps1." });
       last[code] = Date.now();
       console.log(`Keep-alive ${code}: ${ok ? "signed in" : "SIGNED OUT, run claim-login.ps1 -Operator " + code}`);
