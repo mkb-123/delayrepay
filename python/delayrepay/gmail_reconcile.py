@@ -170,18 +170,38 @@ def reconcile(database: Database, lookback_days: int = 90) -> dict[str, Any]:
     for message_id in message_ids:
         message = service.users().messages().get(userId="me", id=message_id, format="full").execute()
         payload = message.get("payload", {})
-        claim = parse_claim(_header(payload, "From"), _header(payload, "Subject"), _message_text(payload))
-        if not claim or not claim.outcome:
-            continue
-        service_id, explanation = _match_service(database, claim)
-        confidence = "CERTAIN" if service_id else "REVIEW"
-        outcome = claim.outcome if service_id else "NEEDS_REVIEW"
-        received_at = datetime.fromtimestamp(int(message["internalDate"]) / 1000, timezone.utc).isoformat()
-        existed = database.connection.execute(
-            "SELECT 1 FROM claim_email_events WHERE gmail_message_id=?", (message_id,)
-        ).fetchone() is not None
-        database.save_claim_email_event(gmail_message_id=message_id, service_id=service_id, operator_code=claim.operator_code, claim_reference=claim.claim_reference, outcome=outcome, received_at=received_at, confidence=confidence, explanation=explanation, parser_version=PARSER_VERSION)
-        counts["stored"] += int(not existed)
-        counts["matched" if service_id else "excluded"] += 1
+        process_message(database, counts, message_id, _header(payload, "From"), _header(payload, "Subject"),
+                        _message_text(payload), int(message["internalDate"]))
+    database.set_last_gmail_reconciliation(datetime.now(timezone.utc).isoformat())
+    return counts
+
+
+def process_message(database: Database, counts: dict[str, int], message_id: str, sender: str, subject: str,
+                    text: str, internal_date_ms: int) -> None:
+    """Parse one operator email, match it to a stored service, and save the event (idempotent by message id)."""
+    claim = parse_claim(sender, subject, text)
+    if not claim or not claim.outcome:
+        return
+    service_id, explanation = _match_service(database, claim)
+    confidence = "CERTAIN" if service_id else "REVIEW"
+    outcome = claim.outcome if service_id else "NEEDS_REVIEW"
+    received_at = datetime.fromtimestamp(internal_date_ms / 1000, timezone.utc).isoformat()
+    existed = database.connection.execute(
+        "SELECT 1 FROM claim_email_events WHERE gmail_message_id=?", (message_id,)
+    ).fetchone() is not None
+    database.save_claim_email_event(gmail_message_id=message_id, service_id=service_id, operator_code=claim.operator_code, claim_reference=claim.claim_reference, outcome=outcome, received_at=received_at, confidence=confidence, explanation=explanation, parser_version=PARSER_VERSION)
+    counts["stored"] += int(not existed)
+    counts["matched" if service_id else "excluded"] += 1
+
+
+def ingest_messages(database: Database, messages: list[dict[str, Any]]) -> dict[str, Any]:
+    """Reconcile messages fetched elsewhere (for example through an approved Gmail connector).
+
+    Each message: {"id", "sender", "subject", "text", "internalDate"} with internalDate in milliseconds.
+    Bodies are parsed in memory and never stored. The reconciliation time is recorded only after every write succeeds.
+    """
+    counts = {"checked": len(messages), "stored": 0, "matched": 0, "review": 0, "excluded": 0}
+    for item in messages:
+        process_message(database, counts, item["id"], item["sender"], item.get("subject", ""), item.get("text", ""), int(item["internalDate"]))
     database.set_last_gmail_reconciliation(datetime.now(timezone.utc).isoformat())
     return counts

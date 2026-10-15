@@ -50,6 +50,7 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("gmail-authorize", help="Authorize read-only Gmail claim reconciliation")
     reconcile = commands.add_parser("gmail-reconcile", help="Reconcile operator claim emails")
     reconcile.add_argument("--lookback-days", type=int, default=90)
+    commands.add_parser("gmail-ingest", help="Reconcile operator emails supplied as JSON on stdin (id, sender, subject, text, internalDate)")
     backup = commands.add_parser("backup", help="Create a consistent SQLite backup")
     backup.add_argument("--keep", type=int, default=30)
     record = commands.add_parser("record-claim", help="Record a claim submitted in a browser outside the worker")
@@ -168,6 +169,11 @@ def main(argv: list[str] | None = None) -> int:
             from .gmail_reconcile import reconcile
             with Database(root) as database:
                 print(json.dumps(reconcile(database, args.lookback_days), indent=2))
+        elif args.command == "gmail-ingest":
+            from .gmail_reconcile import ingest_messages
+            messages = json.load(sys.stdin)
+            with Database(root) as database:
+                print(json.dumps(ingest_messages(database, messages), indent=2))
         elif args.command == "backup":
             from .backup import backup_database
             print(f"Backup: {backup_database(root, args.keep)}")
