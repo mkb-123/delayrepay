@@ -78,6 +78,17 @@ def _load_exported_cookies(context: Any, root: Path, operator_code: str) -> None
     context.add_cookies(cookies)
 
 
+def _headless_context(playwright: Any, root: Path, operator_code: str) -> Any:
+    if _cookie_file(root, operator_code).is_file():
+        browser = playwright.chromium.launch(headless=True, **_launch_options())
+        context = browser.new_context()
+        _load_exported_cookies(context, root, operator_code)
+        return context
+    return playwright.chromium.launch_persistent_context(
+        str(profile_dir(root, operator_code)), headless=True, **_launch_options(),
+    )
+
+
 def login(root: Path, operator_code: str) -> None:
     if operator_code not in ADAPTERS:
         raise ValueError(f"Unsupported operator: {operator_code}")
@@ -181,10 +192,7 @@ def screenshot_path(root: Path, service: dict[str, Any]) -> Path:
 def check_session(root: Path, operator_code: str) -> tuple[str, str]:
     adapter = ADAPTERS[operator_code]
     with _playwright()() as playwright:
-        context = playwright.chromium.launch_persistent_context(
-            str(profile_dir(root, operator_code)), headless=True, **_launch_options(),
-        )
-        _load_exported_cookies(context, root, operator_code)
+        context = _headless_context(playwright, root, operator_code)
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(adapter.login_portal, wait_until="domcontentloaded", timeout=60_000)
@@ -206,10 +214,7 @@ def submit(root: Path, service: dict[str, Any], mode: str = "CALIBRATE") -> Subm
     shot = screenshot_path(root, service)
     shot.parent.mkdir(parents=True, exist_ok=True)
     with _playwright()() as playwright:
-        context = playwright.chromium.launch_persistent_context(
-            str(profile_dir(root, operator_code)), headless=True, **_launch_options(),
-        )
-        _load_exported_cookies(context, root, operator_code)
+        context = _headless_context(playwright, root, operator_code)
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(adapter.login_portal, wait_until="domcontentloaded", timeout=60_000)
