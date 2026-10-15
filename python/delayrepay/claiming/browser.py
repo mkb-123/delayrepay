@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -55,12 +56,18 @@ def profile_dir(root: Path, operator_code: str) -> Path:
     return value
 
 
+def _launch_options() -> dict[str, str]:
+    configured = os.environ.get("DELAYREPAY_CHROMIUM_PATH", "").strip()
+    executable = configured or shutil.which("chromium") or shutil.which("chromium-browser")
+    return {"executable_path": executable} if executable else {}
+
+
 def login(root: Path, operator_code: str) -> None:
     if operator_code not in ADAPTERS:
         raise ValueError(f"Unsupported operator: {operator_code}")
     with _playwright()() as playwright:
         context = playwright.chromium.launch_persistent_context(
-            str(profile_dir(root, operator_code)), headless=False,
+            str(profile_dir(root, operator_code)), headless=False, **_launch_options(),
         )
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(ADAPTERS[operator_code].portal, wait_until="domcontentloaded")
@@ -146,7 +153,9 @@ def screenshot_path(root: Path, service: dict[str, Any]) -> Path:
 def check_session(root: Path, operator_code: str) -> tuple[str, str]:
     adapter = ADAPTERS[operator_code]
     with _playwright()() as playwright:
-        context = playwright.chromium.launch_persistent_context(str(profile_dir(root, operator_code)), headless=True)
+        context = playwright.chromium.launch_persistent_context(
+            str(profile_dir(root, operator_code)), headless=True, **_launch_options(),
+        )
         page = context.pages[0] if context.pages else context.new_page()
         try:
             page.goto(adapter.portal, wait_until="domcontentloaded", timeout=60_000)
@@ -169,7 +178,7 @@ def submit(root: Path, service: dict[str, Any], mode: str = "CALIBRATE") -> Subm
     shot.parent.mkdir(parents=True, exist_ok=True)
     with _playwright()() as playwright:
         context = playwright.chromium.launch_persistent_context(
-            str(profile_dir(root, operator_code)), headless=True,
+            str(profile_dir(root, operator_code)), headless=True, **_launch_options(),
         )
         page = context.pages[0] if context.pages else context.new_page()
         try:
