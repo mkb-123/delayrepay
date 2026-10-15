@@ -11,9 +11,13 @@ $client = Join-Path $secrets "gmail-oauth-client.json"
 $token = Join-Path $secrets "gmail-oauth-token.json"
 if (-not (Test-Path $client)) { throw "Save the Google OAuth client JSON as $client first." }
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$wslRepo = (& wsl wslpath -a $repo).Trim()
-$wslClient = (& wsl wslpath -a $client).Trim()
-$wslToken = (& wsl wslpath -a $token).Trim()
+function ConvertTo-WslPath([string]$WindowsPath) {
+    $full = [System.IO.Path]::GetFullPath($WindowsPath)
+    "/mnt/" + $full.Substring(0, 1).ToLower() + $full.Substring(2).Replace("\", "/")
+}
+$wslRepo = ConvertTo-WslPath $repo
+$wslClient = ConvertTo-WslPath $client
+$wslToken = ConvertTo-WslPath $token
 
 Write-Host "A Google page opens: sign in as mitzbhakta@gmail.com and press Allow (read-only access)."
 & wsl bash -lc "cd '$wslRepo' && GMAIL_OAUTH_CLIENT_FILE='$wslClient' GMAIL_OAUTH_TOKEN_FILE='$wslToken' .venv/bin/delayrepay gmail-authorize"

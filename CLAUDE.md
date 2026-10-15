@@ -127,10 +127,15 @@ Return a short report containing:
 Do not include email bodies, payment amounts, authentication data, or unrelated
 mailbox content in the report.
 
-## Existing schedule
+## Schedule
 
-The Codex app currently has an active daily automation named
-`Reconcile Delay Repay emails`, scheduled for 20:00 Europe/London. If Claude is
-to replace that automation, disable the Codex schedule first so two agents do
-not race to update the same SQLite file. Claude can then run this procedure at
-20:00 daily, after the 19:00 rail collection.
+The Raspberry Pi runs this reconciliation itself, daily at 20:00, with no AI model: the
+`delayrepay-reconcile.timer` runs `python -m delayrepay gmail-reconcile` using the read-only
+Gmail OAuth login stored on the Pi (`GMAIL_OAUTH_*` in its `.env`; set up with
+`scripts/windows/gmail-authorize.ps1`). The Codex automation `Reconcile Delay Repay emails` was
+disabled on 15 Oct 2026, so only the Pi writes to the live database.
+
+An agent only reconciles by hand when the Pi cannot (for example the OAuth login is broken).
+With an approved Gmail connector, fetch the messages, pass the key lines to
+`python -m delayrepay gmail-ingest` (JSON on stdin), and follow the rules above. Emails are
+matched by journey details or by the claim reference recorded at submission.
