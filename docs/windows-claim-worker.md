@@ -136,3 +136,17 @@ worker could claim them again:
 ```powershell
 .\scripts\windows\record-claims.ps1 VT:2026-10-12:06:59:AWC-3944-187-759 LM:2026-09-30:17:26:LNR/DR/20261016/BDHX
 ```
+
+## Gmail reconciliation (daily, no AI)
+
+Create a Google Cloud OAuth client of type Desktop app, leave the app in Testing mode with
+`mitzbhakta@gmail.com` as a test user and the `gmail.readonly` scope, download the JSON and save it as
+`%LOCALAPPDATA%\DelayRepay\secrets\gmail-oauth-client.json`. Then run:
+
+```powershell
+.\scripts\windows\gmail-authorize.ps1
+```
+
+It opens Google (press Allow), saves the token, copies both files to the Pi, and runs a test
+reconciliation. In Testing mode Google expires the login after 7 days: when the dashboard shows
+"Gmail authorization needed", run the same command again.
