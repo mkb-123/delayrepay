@@ -6,6 +6,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+function Assert-NativeSuccess([string]$Step) {
+    if ($LASTEXITCODE -ne 0) { throw "$Step failed with exit code $LASTEXITCODE." }
+}
 $repoDir = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
 if (-not (Test-Path $chrome)) {
@@ -35,9 +38,16 @@ $browser = Start-Process -FilePath $chrome -ArgumentList @(
 try {
     Read-Host "Log in fully in the browser, complete CAPTCHA, then press Enter here"
     & $node (Join-Path $PSScriptRoot "export-browser-cookies.mjs") $port $settings.Domain $cookieFile
-    ssh $PiHost "mkdir -p /var/lib/delayrepay/secrets && chmod 700 /var/lib/delayrepay/secrets"
-    scp $cookieFile "${PiHost}:/var/lib/delayrepay/secrets/$($Operator.ToLower())-cookies.json"
-    ssh $PiHost "chmod 600 /var/lib/delayrepay/secrets/$($Operator.ToLower())-cookies.json"
+    Assert-NativeSuccess "Cookie export"
+    if (-not (Test-Path $cookieFile)) { throw "Cookie export did not create $cookieFile." }
+    $wslCookieFile = (& wsl wslpath -a $cookieFile).Trim()
+    Assert-NativeSuccess "Windows-to-WSL path conversion"
+    & wsl ssh $PiHost "mkdir -p /var/lib/delayrepay/secrets && chmod 700 /var/lib/delayrepay/secrets"
+    Assert-NativeSuccess "Pi secrets-directory setup"
+    & wsl scp $wslCookieFile "${PiHost}:/var/lib/delayrepay/secrets/$($Operator.ToLower())-cookies.json"
+    Assert-NativeSuccess "Session transfer"
+    & wsl ssh $PiHost "chmod 600 /var/lib/delayrepay/secrets/$($Operator.ToLower())-cookies.json"
+    Assert-NativeSuccess "Pi session-file protection"
     Write-Host "Saved $Operator session on the Pi."
 } finally {
     Remove-Item -LiteralPath $cookieFile -Force -ErrorAction SilentlyContinue
