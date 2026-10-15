@@ -106,13 +106,14 @@ async function processJob(job) {
       return;
     }
     const s = job.service;
+    if (s.rawDelayMinutes == null) throw new Error("No delay figure is recorded for this journey, so the claim band is unknown. Check the actual arrival time, then claim by hand and use record-claims.ps1.");
     const from = stations[s.origin], to = stations[s.destination];
     if (!from || !to) throw new Error(`Unknown station in ${s.origin} to ${s.destination}.`);
     await page.evaluate(await fs.readFile(path.join(browserDir, adapter.script), "utf8"));
     const params = {
       date: s.serviceDate, time: s.scheduledDeparture.slice(11, 16),
       fromQuery: from.query, fromName: from.name, toQuery: to.query, toName: to.name,
-      delay: s.rawDelayMinutes ?? 15, submit: false,
+      delay: s.rawDelayMinutes, submit: false,
     };
     // Fill everything first. The final click is made separately so a reload cannot hide the outcome.
     const prepared = await page.evaluate(([fn, p]) => window[fn](p), [adapter.fn, params]);
