@@ -11,6 +11,7 @@ This setup targets Raspberry Pi OS or another Debian-based distribution with sys
 - `delayrepay-claim-worker.timer`: checks every five minutes for journeys explicitly selected in the dashboard;
 - `delayrepay-claim-session.timer`: checks both saved operator sessions each morning;
 - `delayrepay-backup.timer`: consistent SQLite backup at 02:30 daily, retaining 30;
+- `delayrepay-auto-update.timer`: every 5 minutes, fast-forwards to `origin/main` if it moved, reinstalls if `pyproject.toml` changed, smoke-tests, restarts the dashboard, and rolls back (remembering the bad commit) on failure. Merging to `main` is the deploy. Install on an existing Pi with `./deploy/raspberry-pi/install-auto-deploy.sh`; logs via `journalctl -u delayrepay-auto-update.service`;
 - Avahi/mDNS access at `http://delayrepay.local` through Nginx;
 - runtime SQLite and catalogue files in `/var/lib/delayrepay`, separate from Git.
 
