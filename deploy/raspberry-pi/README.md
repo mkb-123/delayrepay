@@ -212,7 +212,7 @@ Never copy a SQLite file from the laptop over the Pi's, and never delete
 
    ```bash
    cd ~/delayrepay
-   ./deploy/raspberry-pi/update.sh
+   ./deploy/raspberry-pi/update.sh   # add --full to force install.sh
    ```
 
 The script takes a verified database snapshot, refuses to run if the checkout
