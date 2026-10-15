@@ -183,8 +183,14 @@ async function portalGuard(page, job) {
   await page.goto("https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=myclaims.list", { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(2000);
   const rows = await page.$$eval("table tr", trs => trs.map(tr => [...tr.children].map(c => c.innerText.trim())));
-  const onDate = rows.filter(r => r[1] === dd).length;
-  return onDate > (job.recordedOnDate || 0) ? { surplus: `${onDate} claim(s) on the portal for ${dd} but ${job.recordedOnDate || 0} recorded` } : {};
+  const onDate = rows.filter(r => r[1] === dd);
+  if (onDate.length <= (job.recordedOnDate || 0)) return {};
+  // Portal claims we have no record of. If exactly one is unknown and exactly one claim is waiting for this
+  // date, it is almost certainly this claim (for example a submit whose confirmation page was missed).
+  const known = new Set(job.recordedReferences || []);
+  const unknown = onDate.filter(r => !known.has(r[0]));
+  if (unknown.length === 1 && (job.pendingOnDate || 0) === 1) return { existing: unknown[0][0] };
+  return { surplus: `${onDate.length} claim(s) on the portal for ${dd} but ${job.recordedOnDate || 0} recorded` };
 }
 
 async function processJob(job) {
@@ -238,7 +244,16 @@ async function processJob(job) {
     if (pause > 0) { console.log(`  waiting ${Math.ceil(pause / 1000)}s between claims`); await page.waitForTimeout(pause); }
     submitStarted = true;
     await page.getByRole("button", { name: /Submit claim/i }).or(page.getByRole("link", { name: /Submit claim/i })).first().click();
-    const waitConfirmed = timeout => page.waitForFunction(re => new RegExp(re, "i").test(document.body.innerText), adapter.confirmed.source, { timeout });
+    // Poll rather than waitForFunction: LNR reloads the page after Submit, which breaks a long-lived evaluation.
+    const waitConfirmed = async timeout => {
+      const until = Date.now() + timeout;
+      while (Date.now() < until) {
+        const text = await page.locator("body").innerText({ timeout: 5000 }).catch(() => "");
+        if (adapter.confirmed.test(text)) return;
+        await page.waitForTimeout(1000);
+      }
+      throw new Error(`No submission confirmation within ${Math.round(timeout / 1000)}s`);
+    };
     try { await waitConfirmed(45000); } catch (error) {
       // reCAPTCHA can escalate to an image challenge. A person has to solve it: surface the window and wait.
       const challenge = await page.locator('iframe[title*="recaptcha challenge" i], iframe[src*="recaptcha/api2/bframe"]').first().isVisible().catch(() => false);

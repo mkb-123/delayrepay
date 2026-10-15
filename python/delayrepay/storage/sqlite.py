@@ -227,6 +227,21 @@ class Database:
         ).fetchall()
         return rows[0]["service_id"] if len(rows) == 1 else None
 
+    def recorded_references_on_date(self, operator_code: str, service_date: str) -> list[str]:
+        rows = self.connection.execute("""
+            SELECT l.claim_reference FROM claim_lifecycle l JOIN services s ON s.service_id=l.service_id
+            WHERE s.operator_code=? AND s.service_date=? AND l.claim_reference IS NOT NULL
+        """, (operator_code, service_date)).fetchall()
+        return [row["claim_reference"] for row in rows]
+
+    def pending_claims_on_date(self, operator_code: str, service_date: str) -> int:
+        """Queued or stopped claims (not yet submitted) for this operator and date, including the one being processed."""
+        row = self.connection.execute("""
+            SELECT COUNT(*) AS n FROM claim_submissions q JOIN services s ON s.service_id=q.service_id
+            WHERE q.operator_code=? AND s.service_date=? AND q.state!='SUBMITTED'
+        """, (operator_code, service_date)).fetchone()
+        return int(row["n"])
+
     def recorded_claims_on_date(self, operator_code: str, service_date: str) -> int:
         """Claims already recorded for this operator and travel date, for the portal duplicate guard."""
         row = self.connection.execute("""

@@ -308,11 +308,14 @@ def create_app(root: Path | str | None = None) -> Flask:
             database.set_metadata_value("laptop_worker_last_seen", _now())  # heartbeat, even when idle
             item = database.lease_claim_submission(_now())
             recorded = database.recorded_claims_on_date(item["operator_code"], item["service"]["serviceDate"]) if item else 0
+            references = database.recorded_references_on_date(item["operator_code"], item["service"]["serviceDate"]) if item else []
+            pending = database.pending_claims_on_date(item["operator_code"], item["service"]["serviceDate"]) if item else 0
         if not item:
             return jsonify({"job": None})
         return jsonify({"job": {
             "serviceId": item["service_id"], "operatorCode": item["operator_code"],
             "mode": item.get("mode") or "CALIBRATE", "service": item["service"], "recordedOnDate": recorded,
+            "recordedReferences": references, "pendingOnDate": pending,
         }})
 
     @app.post("/api/private-worker/result")
