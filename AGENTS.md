@@ -169,31 +169,19 @@ deployed commit, service state, and both health-check results when deployment
 finishes.
 
 
-## Checking for work
+## Checking for work and talking to the Pi
 
-Run the status script instead of exploring by hand. It prints the queue, session and worker health,
-operator outcomes, trains waiting for the user's choice, and a final "NEEDS YOU" list:
+Use `scripts/pi.sh` (Git Bash; it wraps WSL ssh and removes the quoting pitfalls). Do not hand-roll ssh commands.
 
 ```bash
-wsl.exe -e ssh -o BatchMode=yes bhakta-pi@pi.local 'curl -s http://127.0.0.1:8765/api/dashboard' | node scripts/status.mjs
+scripts/pi.sh status              # queue, health, outcomes, trains to choose, "NEEDS YOU" list
+scripts/pi.sh queue list          # also: add | retry | remove | ignore --operator VT --date D --time HH:MM
+scripts/pi.sh sql 'select ...'    # live database; or pipe SQL on stdin
+scripts/pi.sh cli <args>          # python -m delayrepay <args> on the Pi
+scripts/pi.sh py < script.py      # run a Python script on the Pi
+scripts/pi.sh get|put ...         # copy files (scp is unreliable here)
+scripts/pi.sh deploy              # pull and restart the dashboard, no sudo
 ```
 
 If claims are queued, run `scripts/windows/run-claim-worker.ps1` rather than waiting for 19:00.
-
-## Token discipline
-
-Every token costs money and context. Follow these in every session:
-
-- **Look with the script, not by exploring.** `scripts/status.mjs` first. Do not re-derive state by hand.
-- **Small outputs.** Filter command output (`head`, `tail`, `cut`, `grep`). Return one-line JSON from page
-  scripts. Use `max_chars` and `get_page_text`, not full-page screenshots or `read_page` dumps. Take a
-  screenshot only when the text cannot answer the question.
-- **Email.** Search with metadata-only views. LNR HTML bodies are huge (thousands of tokens each): search
-  for decision phrases instead of opening them, and open only Avanti messages. Pass key lines, never full
-  bodies, to `gmail-ingest`.
-- **One call per job.** Batch independent calls in parallel. Put a repeated procedure in a script first.
-- **Never poll.** Start long jobs in the background and check once, or let a timer do it.
-- **Terse replies.** Lead with the result. No recap of the plan, no restating what the user said, no
-  options list unless a decision is needed. Short tables only for data.
-- **Fresh sessions.** One task per session; do not carry unrelated history. Spawn subagents only when asked.
-- **Right-size the model.** Routine runs (worker, status, recording) do not need the largest model.
+The Pi emails an alert when `status --alerts` finds a real problem (hourly check, one email per change).
