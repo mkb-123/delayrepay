@@ -53,6 +53,15 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("gmail-ingest", help="Reconcile operator emails supplied as JSON on stdin (id, sender, subject, text, internalDate)")
     backup = commands.add_parser("backup", help="Create a consistent SQLite backup")
     backup.add_argument("--keep", type=int, default=30)
+    alerts = commands.add_parser("alerts", help="Email an alert if something needs attention (run hourly)")
+    alerts.add_argument("--dry-run", action="store_true", help="Show what would be sent without sending")
+    alerts.add_argument("--test", action="store_true", help="Send a test email")
+    queue = commands.add_parser("queue", help="Manage the claim queue")
+    queue.add_argument("action", choices=("list", "add", "retry", "remove", "ignore"))
+    queue.add_argument("--service-id")
+    queue.add_argument("--operator", choices=("VT", "LM"))
+    queue.add_argument("--date", help="Service date (YYYY-MM-DD)")
+    queue.add_argument("--time", help="Scheduled departure (HH:MM)")
     record = commands.add_parser("record-claim", help="Record a claim submitted in a browser outside the worker")
     record.add_argument("--operator", required=True, choices=("VT", "LM"))
     record.add_argument("--date", required=True, help="Service date (YYYY-MM-DD)")
@@ -177,6 +186,33 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "backup":
             from .backup import backup_database
             print(f"Backup: {backup_database(root, args.keep)}")
+        elif args.command == "alerts":
+            from .alerts import run as run_alerts
+            print(json.dumps(run_alerts(root, args.dry_run, args.test)))
+        elif args.command == "queue":
+            from datetime import datetime, timezone
+            with Database(root) as database:
+                if args.action == "list":
+                    rows = database.connection.execute(
+                        "SELECT service_id, operator_code, state, substr(coalesce(last_error, ''), 1, 90) AS error FROM claim_submissions "
+                        "WHERE state != 'SUBMITTED' ORDER BY queued_at").fetchall()
+                    print("\n".join(f"{r['state']:<16} {r['operator_code']} {r['service_id'].split(':', 1)[1]} {r['error']}" for r in rows) or "Queue is empty.")
+                else:
+                    service_id = args.service_id or database.find_service_id(args.date, args.time, args.operator)
+                    service = database.service_by_id(service_id)
+                    if not service:
+                        raise ValueError(f"No such service: {service_id}")
+                    now = datetime.now(timezone.utc).isoformat()
+                    if args.action in ("add", "retry"):
+                        if database.claim_lifecycle(service_id):
+                            raise ValueError("This journey already has an operator claim.")
+                        database.queue_claim_submission(service_id, service["operatorCode"], now, "SUBMIT")
+                    elif args.action == "remove":
+                        database.cancel_claim_submission(service_id)
+                    else:  # ignore: take it out of the queue and stop suggesting it
+                        database.cancel_claim_submission(service_id)
+                        database.set_not_claimable(service_id, now)
+                    print(f"{args.action}: {service_id}")
         elif args.command == "record-claim":
             from datetime import datetime, timezone
             with Database(root) as database:

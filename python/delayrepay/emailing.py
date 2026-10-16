@@ -107,3 +107,21 @@ def send_summary(database: Database, end_date: str, lookback_days: int, recipien
         smtp.login(sender, password)
         smtp.send_message(message)
     return subject
+
+
+def send_plain(subject: str, body: str, recipient: str | None = None) -> None:
+    """Send a short plain-text email with the same Gmail SMTP settings as the weekly summary."""
+    recipient = recipient or os.environ.get("DELAYREPAY_EMAIL_TO")
+    sender = os.environ.get("GMAIL_SMTP_USER")
+    password = os.environ.get("GMAIL_APP_PASSWORD")
+    if not recipient or not sender or not password:
+        raise ValueError("Set DELAYREPAY_EMAIL_TO, GMAIL_SMTP_USER, and GMAIL_APP_PASSWORD in .env")
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(body)
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
+        smtp.starttls()
+        smtp.login(sender, password)
+        smtp.send_message(message)
