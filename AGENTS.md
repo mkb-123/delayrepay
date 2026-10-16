@@ -179,3 +179,21 @@ wsl.exe -e ssh -o BatchMode=yes bhakta-pi@pi.local 'curl -s http://127.0.0.1:876
 ```
 
 If claims are queued, run `scripts/windows/run-claim-worker.ps1` rather than waiting for 19:00.
+
+## Token discipline
+
+Every token costs money and context. Follow these in every session:
+
+- **Look with the script, not by exploring.** `scripts/status.mjs` first. Do not re-derive state by hand.
+- **Small outputs.** Filter command output (`head`, `tail`, `cut`, `grep`). Return one-line JSON from page
+  scripts. Use `max_chars` and `get_page_text`, not full-page screenshots or `read_page` dumps. Take a
+  screenshot only when the text cannot answer the question.
+- **Email.** Search with metadata-only views. LNR HTML bodies are huge (thousands of tokens each): search
+  for decision phrases instead of opening them, and open only Avanti messages. Pass key lines, never full
+  bodies, to `gmail-ingest`.
+- **One call per job.** Batch independent calls in parallel. Put a repeated procedure in a script first.
+- **Never poll.** Start long jobs in the background and check once, or let a timer do it.
+- **Terse replies.** Lead with the result. No recap of the plan, no restating what the user said, no
+  options list unless a decision is needed. Short tables only for data.
+- **Fresh sessions.** One task per session; do not carry unrelated history. Spawn subagents only when asked.
+- **Right-size the model.** Routine runs (worker, status, recording) do not need the largest model.
