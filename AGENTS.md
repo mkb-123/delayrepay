@@ -168,3 +168,14 @@ reports local Pi edits, inspect and preserve them before continuing. Report the
 deployed commit, service state, and both health-check results when deployment
 finishes.
 
+
+## Checking for work
+
+Run the status script instead of exploring by hand. It prints the queue, session and worker health,
+operator outcomes, trains waiting for the user's choice, and a final "NEEDS YOU" list:
+
+```bash
+wsl.exe -e ssh -o BatchMode=yes bhakta-pi@pi.local 'curl -s http://127.0.0.1:8765/api/dashboard' | node scripts/status.mjs
+```
+
+If claims are queued, run `scripts/windows/run-claim-worker.ps1` rather than waiting for 19:00.
