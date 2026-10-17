@@ -223,15 +223,14 @@ async function processJob(job) {
     await page.goto(adapter.entry, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForTimeout(2000);
     const s = job.service;
-    // A cancelled train needs no delay figure: the routine picks the type Cancelled and any delay band.
-    if (s.rawDelayMinutes == null && !s.cancelled) throw new Error("No delay figure is recorded for this journey, so the claim band is unknown. Check the actual arrival time, then claim by hand and use record-claims.ps1.");
     const from = stations[s.origin], to = stations[s.destination];
     if (!from || !to) throw new Error(`Unknown station in ${s.origin} to ${s.destination}.`);
     await page.evaluate(await fs.readFile(path.join(browserDir, adapter.script), "utf8"));
     const params = {
       date: s.serviceDate, time: s.scheduledDeparture.slice(11, 16),
       fromQuery: from.query, fromName: from.name, toQuery: to.query, toName: to.name,
-      delay: s.cancelled ? undefined : s.rawDelayMinutes, cancelled: !!s.cancelled, submit: false,
+      // No delay figure (or cancelled): the band is irrelevant to the user, so the lowest band (15+) is used.
+      delay: s.cancelled ? undefined : (s.rawDelayMinutes ?? 15), cancelled: !!s.cancelled, submit: false,
     };
     // Fill everything first. The final click is made separately so a reload cannot hide the outcome.
     const prepared = await page.evaluate(([fn, p]) => window[fn](p), [adapter.fn, params]);

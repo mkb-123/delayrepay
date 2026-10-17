@@ -26,6 +26,11 @@ window.awcClaim = async (p) => {
       const lab = [...document.querySelectorAll('mat-label,label')].find(l => /Enter other date/i.test(l.innerText));
       // typed dates are rejected (ng-invalid); use the calendar and click the day (current month only)
       lab.closest('mat-form-field').querySelector('button').click(); await sleep(800);
+      // step the calendar back to the target month (header reads like "SEP 2026")
+      const monthWanted = new Date(+y, +mo - 1, 1).toLocaleString('en-GB', { month: 'short' }).toUpperCase() + ' ' + y;
+      for (let k = 0; k < 3 && (document.querySelector('.mat-calendar-period-button') || {}).innerText?.trim().toUpperCase() !== monthWanted; k++) {
+        document.querySelector('.mat-calendar-previous-button').click(); await sleep(400);
+      }
       (await wait(() => [...document.querySelectorAll('.mat-calendar-body-cell')].find(c => vis(c) && c.innerText.trim() === String(+d) && !c.classList.contains('mat-calendar-body-disabled')))).click();
     }
     await wait(() => location.pathname.includes('make-claim'), 8000);
