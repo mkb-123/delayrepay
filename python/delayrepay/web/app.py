@@ -136,6 +136,7 @@ def create_app(root: Path | str | None = None) -> Flask:
             claim_tracking = database.claim_tracking_items()
             operator_sessions = database.operator_sessions()
             laptop_seen = database.metadata_value("laptop_worker_last_seen")
+            compensation = database.compensation_totals()
             calibrated = {code: database.operator_calibrated(code) for code in ("VT", "LM")}
         totals = {"potentialClaims": 0, "needsReview": 0, "claimed": 0, "noClaim": 0, "incompleteDays": 0}
         for report in reports:
@@ -153,6 +154,7 @@ def create_app(root: Path | str | None = None) -> Flask:
             "claimTracking": claim_tracking,
             "operatorSessions": operator_sessions,
             "laptopWorkerLastSeen": laptop_seen,
+            "compensation": compensation,
             "operatorCalibrated": calibrated,
             "lastBackup": datetime.fromtimestamp(backups[0].stat().st_mtime, timezone.utc).isoformat() if backups else None,
             "backupMirrorConfigured": bool(mirror_value),
@@ -361,6 +363,25 @@ def create_app(root: Path | str | None = None) -> Flask:
         with Database(data_root) as database:
             database.set_operator_session(code, status, _now(), payload.get("explanation") or "Laptop session check.")
         return jsonify({"status": status})
+
+    @app.post("/api/private-worker/amounts")
+    def private_worker_amounts():
+        _require_loopback_worker()
+        payload = request.get_json() or {}
+        code = payload.get("operatorCode", "")
+        if code not in {"VT", "LM"}:
+            raise ValueError("Unsupported operator.")
+        saved = 0
+        with Database(data_root) as database:
+            for item in payload.get("claims", []):
+                reference, pence, status = item.get("reference"), item.get("amountPence"), item.get("status")
+                if not reference or not isinstance(pence, int) or pence <= 0 or status not in {"APPROVED", "PAID"}:
+                    continue
+                database.save_claim_amount(
+                    claim_reference=reference, kind=status, operator_code=code, amount_pence=pence, received_at=_now(),
+                    source="portal", service_id=database.service_id_for_reference(reference))
+                saved += 1
+        return jsonify({"saved": saved})
 
     @app.get("/api/claim-screenshots/<path:filename>")
     def claim_screenshot(filename: str):

@@ -278,10 +278,29 @@ async function processJob(job) {
 // Visit each operator once a day with its saved profile. Activity extends the portal's
 // idle timeout, and an expired session is reported to the dashboard straight away instead
 // of surfacing only when a claim fails.
+// LNR's claims list states the compensation awarded for each approved claim. Report approved amounts for
+// journeys since the tracker began, so the dashboard can total them without reading any email.
+const AMOUNTS_SINCE = "2026-09-01";
+async function refreshAmounts(page, code) {
+  if (code !== "LM") return;
+  await page.goto("https://londonnorthwesternrailway.delayrepaycompensation.com/index.cfm?action=myclaims.list", { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForTimeout(2000);
+  const rows = await page.$$eval("table tr", trs => trs.map(tr => [...tr.children].map(c => c.innerText.trim())));
+  const claims = rows.filter(r => /^LNR\/DR\//.test(r[0]) && /^approved$/i.test(r[2] || "")).flatMap(r => {
+    const [d, m, y] = (r[1] || "").split("/");
+    const pence = Math.round(parseFloat((r[3] || "").replace(/[^\d.]/g, "")) * 100);
+    return `${y}-${m}-${d}` >= AMOUNTS_SINCE && pence > 0 ? [{ reference: r[0], status: "APPROVED", amountPence: pence }] : [];
+  });
+  const saved = await post("/api/private-worker/amounts", { operatorCode: code, claims });
+  console.log(`LNR approved amounts reported: ${claims.length} claim(s)`);
+  return saved;
+}
+
+const forceKeepAlive = process.env.DELAYREPAY_FORCE_KEEPALIVE === "1";
 async function keepAlive() {
   const base = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "DelayRepay");
   for (const code of Object.keys(adapters)) {
-    if (Date.now() - (state.checked[code] || 0) < 20 * 3600 * 1000) continue;
+    if (!forceKeepAlive && Date.now() - (state.checked[code] || 0) < 20 * 3600 * 1000) continue;
     try { await fs.access(path.join(base, "browser-profiles", code.toLowerCase())); } catch { continue; }
     try {
       const page = (await contextFor(code)).pages()[0] || await (await contextFor(code)).newPage();
@@ -289,6 +308,7 @@ async function keepAlive() {
       const note = sessionNote(code, ok);
       await post("/api/private-worker/session", { operatorCode: code, status: ok ? "LOGIN_OK" : "LOGIN_NEEDED", explanation: ok ? "Daily keep-alive visit succeeded." : `Session expired.${note} Run claim-login.ps1.` });
       state.checked[code] = Date.now();
+      if (ok) await refreshAmounts(page, code).catch(error => console.log(`  amounts: ${error.message}`));
       console.log(`Keep-alive ${code}: ${ok ? "signed in" : "SIGNED OUT," + note + " Run claim-login.ps1 -Operator " + code}`);
     } catch (error) { console.log(`Keep-alive ${code} failed: ${error.message}`); }
   }

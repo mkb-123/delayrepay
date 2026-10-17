@@ -128,6 +128,17 @@ class Database:
                 explanation TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            -- Amounts exactly as the operator states them (never calculated here).
+            CREATE TABLE IF NOT EXISTS claim_amounts (
+                claim_reference TEXT NOT NULL,
+                kind TEXT NOT NULL CHECK (kind IN ('EXPECTED', 'APPROVED', 'PAID')),
+                operator_code TEXT NOT NULL,
+                service_id TEXT,
+                amount_pence INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                received_at TEXT NOT NULL,
+                PRIMARY KEY (claim_reference, kind)
+            );
         """)
         columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(claim_submissions)")}
         for name, declaration in {
@@ -573,6 +584,48 @@ class Database:
                             claim_reference=excluded.claim_reference,
                             explanation=excluded.explanation, updated_at=excluded.updated_at
                     """, (service_id, outcome, received_at, operator_code, claim_reference, explanation))
+
+    def save_claim_amount(
+        self, *, claim_reference: str, kind: str, operator_code: str, amount_pence: int,
+        received_at: str, source: str, service_id: str | None = None,
+    ) -> None:
+        """Record an amount the operator stated. Idempotent per reference and kind; a later statement wins."""
+        if kind not in {"EXPECTED", "APPROVED", "PAID"}:
+            raise ValueError(f"Unsupported amount kind: {kind}")
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO claim_amounts(claim_reference, kind, operator_code, service_id, amount_pence, source, received_at)
+                VALUES(?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(claim_reference, kind) DO UPDATE SET
+                    operator_code=excluded.operator_code,
+                    service_id=COALESCE(excluded.service_id, claim_amounts.service_id),
+                    amount_pence=excluded.amount_pence, source=excluded.source, received_at=excluded.received_at
+                WHERE excluded.received_at >= claim_amounts.received_at
+            """, (claim_reference, kind, operator_code, service_id, amount_pence, source, received_at))
+
+    def compensation_totals(self) -> dict[str, Any]:
+        """Approved (including paid), paid, and still-expected amounts, in pence, with per-operator splits."""
+        rows = self.connection.execute("SELECT claim_reference, kind, operator_code, amount_pence FROM claim_amounts").fetchall()
+        by_kind: dict[str, dict[str, int]] = {"EXPECTED": {}, "APPROVED": {}, "PAID": {}}
+        operators: dict[str, str] = {}
+        for row in rows:
+            by_kind[row["kind"]][row["claim_reference"]] = row["amount_pence"]
+            operators[row["claim_reference"]] = row["operator_code"]
+        approved = {**by_kind["APPROVED"], **by_kind["PAID"]}
+        paid = by_kind["PAID"]
+        decided = {row["claim_reference"] for row in self.connection.execute(
+            "SELECT claim_reference FROM claim_lifecycle WHERE status IN ('APPROVED', 'REJECTED', 'PAID') AND claim_reference IS NOT NULL")}
+        pending = {ref: pence for ref, pence in by_kind["EXPECTED"].items() if ref not in approved and ref not in decided}
+        def per_operator(values: dict[str, int]) -> dict[str, int]:
+            totals: dict[str, int] = {}
+            for ref, pence in values.items():
+                totals[operators[ref]] = totals.get(operators[ref], 0) + pence
+            return totals
+        return {
+            "approvedPence": sum(approved.values()), "approvedClaims": len(approved), "approvedByOperator": per_operator(approved),
+            "paidPence": sum(paid.values()), "paidClaims": len(paid),
+            "expectedPendingPence": sum(pending.values()), "expectedPendingClaims": len(pending),
+        }
 
     def set_last_gmail_reconciliation(self, reconciled_at: str) -> None:
         with self.connection:

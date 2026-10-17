@@ -52,6 +52,15 @@ function isStuck(submission) {
   const started = Date.parse(submission.startedAt || submission.started_at || submission.updated_at || "");
   return Number.isFinite(started) && Date.now() - started > 30 * 60000;
 }
+const pounds = pence => `£${(pence / 100).toFixed(2)}`;
+function compensationSummary() {
+  const c = data.operations?.compensation;
+  if (!c || (!c.approvedPence && !c.expectedPendingPence)) return "";
+  const split = Object.entries(c.approvedByOperator || {}).map(([code, pence]) => `${{VT: "Avanti", LM: "LNR"}[code] || code} ${pounds(pence)}`).join(" · ");
+  const parts = [`Approved ${pounds(c.approvedPence)} (${c.approvedClaims} claim${c.approvedClaims === 1 ? "" : "s"})`, `paid ${pounds(c.paidPence)}`];
+  const pending = c.expectedPendingClaims ? `If the ${c.expectedPendingClaims} pending claim${c.expectedPendingClaims === 1 ? " is" : "s are"} approved at the amount stated: ${pounds(c.expectedPendingPence)} more` : "";
+  return `<p class="comp-summary">${esc(parts.join(" · "))}<small>${esc([split, pending].filter(Boolean).join(" | "))}</small></p>`;
+}
 function workerChip() {
   const seen = data.operations?.laptopWorkerLastSeen;
   const fresh = seen && Date.now() - Date.parse(seen) < 24 * 3600000;
@@ -172,7 +181,7 @@ function renderClaimPipeline() {
   const complete = services.filter(service => ["APPROVED", "PAID", "REJECTED"].includes(service.claimLifecycle?.status));
   const badge = service => lifecycleBadge(service.claimLifecycle) || submissionBadge(service.claimSubmission) || '<span class="claim-lifecycle lifecycle-SUBMITTED">Marked claimed</span>';
   const cards = rows => rows.map(service => `<button class="pipeline-card" onclick="showTrackedClaim('${encodeURIComponent(service.serviceId)}')"><strong>${dayLabel(service.serviceDate)} · ${clock(service.scheduledDeparture)}</strong><span>${esc(service.operatorName)}</span>${badge(service)}${queueReason(service.claimSubmission) ? `<small class="queue-reason">${esc(queueReason(service.claimSubmission))}</small>` : ""}</button>`).join("");
-  $("claimPipeline").innerHTML = `<div class="section-heading"><h2>Claim queue</h2><div class="worker-status">${workerChip()}${sessionChips()}</div></div>${active.length ? `<div class="pipeline-grid">${cards(active)}</div>` : '<p class="empty compact">Nothing queued.</p>'}${awaiting.length ? `<details class="completed-claims" open><summary>${awaiting.length} awaiting operator</summary><div class="pipeline-grid">${cards(awaiting)}</div></details>` : ""}${complete.length ? `<details class="completed-claims"><summary>${complete.length} completed claim${complete.length === 1 ? "" : "s"}</summary><div class="pipeline-grid">${cards(complete)}</div></details>` : ""}`;
+  $("claimPipeline").innerHTML = `<div class="section-heading"><h2>Claim queue</h2><div class="worker-status">${workerChip()}${sessionChips()}</div></div>${compensationSummary()}${active.length ? `<div class="pipeline-grid">${cards(active)}</div>` : '<p class="empty compact">Nothing queued.</p>'}${awaiting.length ? `<details class="completed-claims" open><summary>${awaiting.length} awaiting operator</summary><div class="pipeline-grid">${cards(awaiting)}</div></details>` : ""}${complete.length ? `<details class="completed-claims"><summary>${complete.length} completed claim${complete.length === 1 ? "" : "s"}</summary><div class="pipeline-grid">${cards(complete)}</div></details>` : ""}`;
 }
 
 async function showTrackedClaim(encodedId) {

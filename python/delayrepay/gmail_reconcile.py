@@ -31,6 +31,7 @@ class ParsedClaim:
     departure_time: str | None
     origin: str | None
     destination: str | None
+    amount_pence: int | None = None
 
 
 def _oauth_paths() -> tuple[Path, Path]:
@@ -138,7 +139,17 @@ def parse_claim(sender: str, subject: str, text: str) -> ParsedClaim | None:
         outcome = "SUBMITTED"
     else:
         outcome = None
-    return ParsedClaim(operator, reference_match.group(1) if reference_match else None, outcome, _iso_date(date_match.group(1)) if date_match else None, time, origin, destination)
+    # Amounts are only what the operator states: the award in an approval, the payment in a payment email,
+    # or the amount a receipt says to expect if the claim is approved.
+    amount_match = None
+    if outcome == "APPROVED":
+        amount_match = re.search(r"entitled to\s+£\s*([\d,]+(?:\.\d\d)?)", combined, re.I) or re.search(r"£\s*([\d,]+\.\d\d)", combined)
+    elif outcome == "PAID":
+        amount_match = re.search(r"£\s*([\d,]+\.\d\d)", combined)
+    elif outcome == "SUBMITTED":
+        amount_match = re.search(r"compensation of\s+£\s*([\d,]+\.\d\d)", combined, re.I)
+    amount_pence = round(float(amount_match.group(1).replace(",", "")) * 100) if amount_match else None
+    return ParsedClaim(operator, reference_match.group(1) if reference_match else None, outcome, _iso_date(date_match.group(1)) if date_match else None, time, origin, destination, amount_pence)
 
 
 def _match_service(database: Database, claim: ParsedClaim) -> tuple[str | None, str]:
@@ -196,6 +207,17 @@ def process_message(database: Database, counts: dict[str, int], message_id: str,
     database.save_claim_email_event(gmail_message_id=message_id, service_id=service_id, operator_code=claim.operator_code, claim_reference=claim.claim_reference, outcome=outcome, received_at=received_at, confidence=confidence, explanation=explanation, parser_version=PARSER_VERSION)
     counts["stored"] += int(not existed)
     counts["matched" if service_id else "excluded"] += 1
+    record_amount(database, claim, service_id, received_at, "email")
+
+
+AMOUNT_KINDS = {"APPROVED": "APPROVED", "PAID": "PAID", "SUBMITTED": "EXPECTED"}
+
+
+def record_amount(database: Database, claim: ParsedClaim, service_id: str | None, received_at: str, source: str) -> None:
+    if claim.amount_pence and claim.claim_reference and claim.outcome in AMOUNT_KINDS:
+        database.save_claim_amount(
+            claim_reference=claim.claim_reference, kind=AMOUNT_KINDS[claim.outcome], operator_code=claim.operator_code,
+            amount_pence=claim.amount_pence, received_at=received_at, source=source, service_id=service_id)
 
 
 def ingest_messages(database: Database, messages: list[dict[str, Any]]) -> dict[str, Any]:
@@ -206,6 +228,13 @@ def ingest_messages(database: Database, messages: list[dict[str, Any]]) -> dict[
     """
     counts = {"checked": len(messages), "stored": 0, "matched": 0, "review": 0, "excluded": 0}
     for item in messages:
+        if item.get("amountsOnly"):
+            # Historic emails outside the stored dataset: keep the stated amount, add no review item.
+            claim = parse_claim(item["sender"], item.get("subject", ""), item.get("text", ""))
+            if claim:
+                received = datetime.fromtimestamp(int(item["internalDate"]) / 1000, timezone.utc).isoformat()
+                record_amount(database, claim, _match_service(database, claim)[0], received, "email")
+            continue
         process_message(database, counts, item["id"], item["sender"], item.get("subject", ""), item.get("text", ""), int(item["internalDate"]))
     database.set_last_gmail_reconciliation(datetime.now(timezone.utc).isoformat())
     return counts

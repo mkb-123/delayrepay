@@ -46,6 +46,11 @@ const counts = {};
 for (const s of tracking) { const k = s.claimLifecycle ? s.claimLifecycle.status : s.claimSubmission ? "QUEUED-ONLY" : "ACK-ONLY"; counts[k] = (counts[k] || 0) + 1; }
 log(`\nOperator outcomes: ${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(", ") || "none"}`);
 for (const s of tracking.filter(s => ["APPROVED", "PAID"].includes(s.claimLifecycle?.status))) log(`  ${s.claimLifecycle.status} ${label(s)} ${s.claimLifecycle.claim_reference || ""}`);
+const comp = ops.compensation;
+if (comp) {
+  const gbp = p => "£" + (p / 100).toFixed(2);
+  log(`Compensation: approved ${gbp(comp.approvedPence)} (${comp.approvedClaims} claims; ${Object.entries(comp.approvedByOperator || {}).map(([k, v]) => k + " " + gbp(v)).join(", ")}), paid ${gbp(comp.paidPence)}, expected if pending approved ${gbp(comp.expectedPendingPence)} (${comp.expectedPendingClaims} claims)`);
+}
 const review = (ops.emailReview || []).length;
 if (review) log(`Emails awaiting a match: ${review}`);
 
