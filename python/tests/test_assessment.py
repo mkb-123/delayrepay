@@ -12,7 +12,7 @@ def svc(service_id, operator, name, dep, arr, actual_dep, actual_arr, raw):
 
 
 class AlternativeTrainTests(unittest.TestCase):
-    """Regression for the Avanti rejections of 7 and 8 Oct 2026: the 18:19 LNR train beat the late 18:16 Avanti."""
+    """Each operator is measured only against its own trains (the user's rule)."""
 
     def setUp(self):
         self.avanti = svc("a", "VT", "Avanti West Coast", "2026-10-07T18:16:00", "2026-10-07T18:51:00",
@@ -20,11 +20,18 @@ class AlternativeTrainTests(unittest.TestCase):
         self.lnr = svc("b", "LM", "London Northwestern Railway", "2026-10-07T18:19:00", "2026-10-07T18:56:00",
                        "2026-10-07T18:19:00", "2026-10-07T18:57:00", 1)
 
-    def test_other_operator_alternative_marks_avanti_claim_likely_rejected(self):
+    def test_another_operators_train_does_not_affect_an_avanti_claim(self):
         result = assess(self.avanti, [self.avanti, self.lnr])
+        self.assertEqual(result["status"], "POTENTIAL")
+        self.assertFalse(result["likelyRejected"])
+
+    def test_a_better_train_from_the_same_operator_flags_likely_rejected(self):
+        later_avanti = svc("e", "VT", "Avanti West Coast", "2026-10-07T18:23:00", "2026-10-07T18:58:00",
+                           "2026-10-07T18:23:00", "2026-10-07T18:59:00", 1)
+        result = assess(self.avanti, [self.avanti, later_avanti])
         self.assertTrue(result["likelyRejected"])
         self.assertEqual(result["status"], "NEEDS_REVIEW")
-        self.assertEqual(result["effectiveDelayMinutes"], 6)
+        self.assertEqual(result["effectiveDelayMinutes"], 8)
 
     def test_no_alternative_stays_potential(self):
         result = assess(self.avanti, [self.avanti])
@@ -59,6 +66,13 @@ class CancelledTrainTests(unittest.TestCase):
         result = assess(cancelled, [cancelled, following])
         self.assertEqual(result["status"], "NO_CLAIM")
         self.assertEqual(result["effectiveDelayMinutes"], 6)
+
+    def test_same_time_twin_that_ran_counts_as_the_next_train(self):
+        cancelled, _ = self.make("2026-10-15T07:45:00")
+        twin = dict(svc("t", "LM", "London Northwestern Railway", "2026-10-15T06:49:00", "2026-10-15T07:24:00", "2026-10-15T06:49:00", "2026-10-15T07:22:00", 0), direction="MORNING")
+        result = assess(cancelled, [cancelled, twin])
+        self.assertEqual(result["status"], "NO_CLAIM")
+        self.assertEqual(result["effectiveDelayMinutes"], 0)
 
     def test_no_later_train_data_waits_for_review(self):
         cancelled, _ = self.make("2026-10-15T07:45:00")

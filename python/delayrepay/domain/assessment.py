@@ -68,7 +68,7 @@ def assess(
             (c for c in all_services
              if c.get("serviceId") != service.get("serviceId") and c.get("direction") == service.get("direction")
              and c.get("operatorCode") == service.get("operatorCode") and not c.get("cancelled") and c.get("actualArrival")
-             and (c.get("scheduledDeparture") or "") > (service.get("scheduledDeparture") or "")),
+             and (c.get("scheduledDeparture") or "") >= (service.get("scheduledDeparture") or "")),
             key=lambda c: c["scheduledDeparture"])
         if not following or not service.get("scheduledArrival"):
             base["explanation"] = "Cancelled, and no later train from the same operator has arrival data yet."
@@ -90,9 +90,10 @@ def assess(
         base.update(
             status="NEEDS_REVIEW", effectiveDelayMinutes=max(0, best["estimatedDelayMinutes"]), likelyRejected=True,
             explanation=(
-                f"Likely rejected: this train arrived {raw} minutes late, but the {best['actualDeparture'][11:16]} {best['operator']} "
-                f"reached {service['destination']} only {max(0, best['estimatedDelayMinutes'])} minutes after your intended arrival. "
-                f"{rule['operatorName']} measures the delay against the best alternative your ticket allows."
+                f"Likely rejected: this {service['operatorName']} train was {raw} minutes late, but the {best['actualDeparture'][11:16]} "
+                f"{best['operator']} reached {service['destination']} at {best['actualArrival'][11:16]}, only "
+                f"{max(0, best['estimatedDelayMinutes'])} minutes after your planned {(service.get('scheduledArrival') or '')[11:16]}. "
+                f"{rule['operatorName']} measures the delay against its own best alternative train."
             ),
         )
     elif best and best["estimatedDelayMinutes"] < raw:
