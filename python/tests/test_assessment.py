@@ -40,5 +40,32 @@ class AlternativeTrainTests(unittest.TestCase):
         self.assertEqual(result["status"], "POTENTIAL")
 
 
+class CancelledTrainTests(unittest.TestCase):
+    """A cancelled train takes its delay from the next train of the same operator."""
+
+    def make(self, next_actual_arrival):
+        cancelled = dict(svc("c", "LM", "London Northwestern Railway", "2026-10-15T06:49:00", "2026-10-15T07:24:00", None, None, None), cancelled=True, direction="MORNING")
+        following = dict(svc("n", "LM", "London Northwestern Railway", "2026-10-15T06:56:00", "2026-10-15T07:38:00", "2026-10-15T06:56:00", next_actual_arrival, 0), direction="MORNING")
+        return cancelled, following
+
+    def test_long_gap_to_next_train_is_a_claim(self):
+        cancelled, following = self.make("2026-10-15T07:45:00")  # due 07:24, next arrived 07:45
+        result = assess(cancelled, [cancelled, following])
+        self.assertEqual(result["status"], "POTENTIAL")
+        self.assertEqual(result["effectiveDelayMinutes"], 21)
+
+    def test_short_gap_is_not_a_claim(self):
+        cancelled, following = self.make("2026-10-15T07:30:00")
+        result = assess(cancelled, [cancelled, following])
+        self.assertEqual(result["status"], "NO_CLAIM")
+        self.assertEqual(result["effectiveDelayMinutes"], 6)
+
+    def test_no_later_train_data_waits_for_review(self):
+        cancelled, _ = self.make("2026-10-15T07:45:00")
+        result = assess(cancelled, [cancelled])
+        self.assertEqual(result["status"], "NEEDS_REVIEW")
+        self.assertIn("no later train", result["explanation"])
+
+
 if __name__ == "__main__":
     unittest.main()

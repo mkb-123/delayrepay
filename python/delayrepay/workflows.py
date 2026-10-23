@@ -320,6 +320,7 @@ def build_recommendations(
                 "claimUrl": evaluation.get("claimUrl"), "claimedAt": claimed_at,
                 "claimLifecycle": evaluation.get("claimLifecycle"),
                 "claimSubmission": evaluation.get("claimSubmission"),
+                "cancelledTrain": bool(row.get("cancelled")),
             })
             continue
         review = [row for row in rows if row["assessment"]["status"] == "NEEDS_REVIEW" or row.get("cancelled")]
@@ -335,6 +336,7 @@ def build_recommendations(
                 "claimLifecycle": row["assessment"].get("claimLifecycle"),
                 "claimSubmission": row["assessment"].get("claimSubmission"),
                 "likelyRejected": bool(row["assessment"].get("likelyRejected")),
+                "cancelledTrain": bool(row.get("cancelled")),
             })
         else:
             recommendations.append({"direction": direction, "status": "NO_CLAIM", "explanation": "No confidently claimable disruption."})

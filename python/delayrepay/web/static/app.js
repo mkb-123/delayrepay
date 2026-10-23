@@ -230,11 +230,11 @@ function renderRecommendations() {
       const claim = claimDisplay(item);
       const cancelled = /cancelled/i.test(item.explanation || ""), noArrival = /not recorded/i.test(item.explanation || "");
       const assessmentLabel = item.likelyRejected ? "Likely rejected" : item.status === "POTENTIAL" ? "Claim" : item.status === "CLAIMED" ? "Marked claimed"
-        : cancelled ? "Cancelled · was this yours?" : noArrival ? "No arrival time from RTT yet" : "Decide";
+        : cancelled && item.status !== "POTENTIAL" ? "Cancelled · waiting for the next train's arrival" : noArrival ? "No arrival time from RTT yet" : "Decide";
       const label = claim.label || assessmentLabel;
       // A journey that has already run but has no timing data cannot be claimed reliably: flag it.
       const noData = item.effectiveDelayMinutes == null && !item.claimLifecycle && !/cancelled/i.test(item.explanation || "") && Date.parse(item.scheduledDeparture) < Date.now() - 2 * 3600000;
-      const detail = item.effectiveDelayMinutes == null ? (noData ? `${label} · <span class="no-data">no timing data</span>` : label) : `${item.effectiveDelayMinutes} min · ${label}`;
+      const detail = item.cancelledTrain && item.effectiveDelayMinutes != null ? `cancelled · ${item.effectiveDelayMinutes} min to next train · ${label}` : item.effectiveDelayMinutes == null ? (noData ? `${label} · <span class="no-data">no timing data</span>` : label) : `${item.effectiveDelayMinutes} min · ${label}`;
       const preference = item.preferredClaimedTime ? " · claimed time" : "";
       const left = deadlineText(day.date);
       const urgent = daysLeft(day.date) <= 5 ? " urgent" : "";

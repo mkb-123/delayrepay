@@ -62,7 +62,26 @@ def assess(
     elif service.get("dataIssues"):
         base["explanation"] = "RTT data is incomplete: " + " ".join(service["dataIssues"])
     elif service.get("cancelled"):
-        base["explanation"] = "Service cancelled; confirm which alternative you actually used and when it arrived."
+        # A cancelled train has no delay of its own. Infer it from the next train of the same operator:
+        # when that train actually reached the destination, against when the cancelled one was due.
+        following = sorted(
+            (c for c in all_services
+             if c.get("serviceId") != service.get("serviceId") and c.get("direction") == service.get("direction")
+             and c.get("operatorCode") == service.get("operatorCode") and not c.get("cancelled") and c.get("actualArrival")
+             and (c.get("scheduledDeparture") or "") > (service.get("scheduledDeparture") or "")),
+            key=lambda c: c["scheduledDeparture"])
+        if not following or not service.get("scheduledArrival"):
+            base["explanation"] = "Cancelled, and no later train from the same operator has arrival data yet."
+        else:
+            nxt = following[0]
+            inferred = max(0, minutes_between(nxt["actualArrival"], service["scheduledArrival"]))
+            when = nxt["scheduledDeparture"][11:16]
+            if inferred < rule["minimumDelay"]:
+                base.update(status="NO_CLAIM", effectiveDelayMinutes=inferred, cancelledInferred=True, explanation=(
+                    f"Cancelled, but the next {nxt['operatorName']} ({when}) reached {service['destination']} only {inferred} minutes after this train was due."))
+            else:
+                base.update(status="POTENTIAL", effectiveDelayMinutes=inferred, cancelledInferred=True, explanation=(
+                    f"Cancelled. The next {nxt['operatorName']} ({when}) reached {service['destination']} {inferred} minutes after this train was due."))
     elif raw is None:
         base["explanation"] = "Actual destination arrival is not recorded."
     elif raw < rule["minimumDelay"]:
