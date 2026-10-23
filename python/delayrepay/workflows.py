@@ -89,7 +89,7 @@ def discover(root: Path, service_date: str, client: RttClient, direction: str = 
         window = WINDOWS[current_direction]
         LOGGER.info("Loading %s origin and destination lineups", current_direction.lower())
         origin_line = client.lineup(window["origin"], service_date, window["from"], _later(window["to"], CONTEXT_MINUTES))
-        destination_line = client.lineup(window["destination"], service_date, window["from"], _later(window["to"], 90))
+        destination_line = client.lineup(window["destination"], service_date, window["from"], _later(window["to"], 90 + CONTEXT_MINUTES))
         origins = {
             item.get("scheduleMetadata", {}).get("uniqueIdentity"): item
             for item in origin_line.get("services", [])
@@ -179,8 +179,8 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
         {"direction": direction, "station": station, "from": start, "to": end}
         for direction in directions
         for station, start, end in (
-            (WINDOWS[direction]["origin"], WINDOWS[direction]["from"], WINDOWS[direction]["to"]),
-            (WINDOWS[direction]["destination"], WINDOWS[direction]["from"], _later(WINDOWS[direction]["to"], 90)),
+            (WINDOWS[direction]["origin"], WINDOWS[direction]["from"], _later(WINDOWS[direction]["to"], CONTEXT_MINUTES)),
+            (WINDOWS[direction]["destination"], WINDOWS[direction]["from"], _later(WINDOWS[direction]["to"], 90 + CONTEXT_MINUTES)),
         )
     ]
     LOGGER.info("Collection for %s: %d lineup requests covering %d catalogue services%s", service_date, len(planned), len(entries), " (dry run)" if dry_run else "")
@@ -197,8 +197,8 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
         window = WINDOWS[direction]
         LOGGER.info("Loading %s origin and destination lineups", direction.lower())
         try:
-            origin_line = client.lineup(window["origin"], service_date, window["from"], window["to"])
-            destination_line = client.lineup(window["destination"], service_date, window["from"], _later(window["to"], 90))
+            origin_line = client.lineup(window["origin"], service_date, window["from"], _later(window["to"], CONTEXT_MINUTES))
+            destination_line = client.lineup(window["destination"], service_date, window["from"], _later(window["to"], 90 + CONTEXT_MINUTES))
         except RttError as error:
             errors.append({"direction": direction, "error": str(error)})
             continue
