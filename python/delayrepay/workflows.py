@@ -205,8 +205,13 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
         destinations = {item.get("scheduleMetadata", {}).get("identity"): item for item in destination_line.get("services", [])}
         for entry in (item for item in entries if item["direction"] == direction):
             identity = entry["rttIdentity"]
+            if identity not in origins and identity not in destinations:
+                # Absent at both stations: the catalogued service did not run that day (a different weekend
+                # timetable, engineering works). That is not a data gap, so it does not make the day incomplete.
+                LOGGER.info("Service %s did not run on %s", identity, service_date)
+                continue
             if identity not in origins or identity not in destinations:
-                errors.append({"rttIdentity": identity, "error": "Service was not present at both monitored stations."})
+                errors.append({"rttIdentity": identity, "error": "Service was present at only one monitored station."})
                 continue
             service = _service_from_lineups(entry, origins[identity], destinations[identity], _now())
             if in_window(service):

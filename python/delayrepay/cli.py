@@ -46,7 +46,7 @@ def parser() -> argparse.ArgumentParser:
     email.add_argument("--dry-run", action="store_true", help="Print the email without sending it")
     daily = commands.add_parser("daily-brief", help="Collect and report the scheduled lookback window")
     daily.add_argument("--date", help="Window end date; defaults to the latest weekday")
-    daily.add_argument("--lookback-days", type=int, default=10)
+    daily.add_argument("--lookback-days", type=int, default=14)
     commands.add_parser("gmail-authorize", help="Authorize read-only Gmail claim reconciliation")
     reconcile = commands.add_parser("gmail-reconcile", help="Reconcile operator claim emails")
     reconcile.add_argument("--lookback-days", type=int, default=90)
