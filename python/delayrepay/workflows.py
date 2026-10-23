@@ -331,7 +331,10 @@ def build_recommendations(
                 "cancelledTrain": bool(row.get("cancelled")),
             })
             continue
-        review = [row for row in rows if row["assessment"]["status"] == "NEEDS_REVIEW" or row.get("cancelled")]
+        # A cancelled train is surfaced only while its delay is unresolved. Once inferred (or marked not
+        # claimable) the assessment status decides, so a 9-minute inferred delay is not offered as a claim.
+        review = [row for row in rows if row["assessment"]["status"] == "NEEDS_REVIEW"
+                  or (row.get("cancelled") and row["assessment"]["status"] not in {"NO_CLAIM", "CLAIMED"})]
         review.sort(key=lambda row: (not row.get("cancelled"), -(row.get("rawDelayMinutes") or 0), row.get("scheduledDeparture") or ""))
         if selected or review:
             row = selected[0] if selected else review[0]
