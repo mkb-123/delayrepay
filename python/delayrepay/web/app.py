@@ -112,6 +112,16 @@ def create_app(root: Path | str | None = None) -> Flask:
     def index():
         return render_template("index.html")
 
+    @app.get("/stats")
+    def stats_page():
+        return render_template("stats.html")
+
+    @app.get("/api/stats")
+    def stats_api():
+        from ..stats import build_stats
+        with Database(data_root) as database:
+            return jsonify(build_stats(database))
+
     @app.get("/health")
     def health():
         with Database(data_root) as database:

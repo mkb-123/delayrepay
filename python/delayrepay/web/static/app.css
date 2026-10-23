@@ -203,3 +203,20 @@ dialog::backdrop { background: #10251eaa; }
 
 .comp-summary { margin: 0 0 8px; font-size: .78rem; font-weight: 700; color: #155e45; background: #e6f4ee; border-radius: 9px; padding: 7px 10px; }
 .comp-summary small { display: block; font-weight: 600; color: #4b5a52; margin-top: 2px; }
+
+/* stats page */
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.stats-link { font-size: .8rem; font-weight: 700; color: #155e45; text-decoration: none; padding: 8px 12px; border: 1px solid #c9d6cf; border-radius: 10px; background: #fff; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.stat-card { display: grid; gap: 2px; padding: 10px 12px; background: #fff; border: 1px solid #dce2de; border-radius: 12px; }
+.stat-card strong { font-size: 1.35rem; color: #123d31; }
+.stat-card span { font-size: .72rem; font-weight: 700; }
+.stat-card small, .stat-note { color: #68736d; font-size: .66rem; line-height: 1.35; }
+main > section > h2 { font-size: .95rem; margin: 16px 0 6px; }
+.stat-table { width: 100%; border-collapse: collapse; font-size: .74rem; background: #fff; border: 1px solid #dce2de; border-radius: 10px; overflow: hidden; }
+.stat-table th, .stat-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #eef1ef; }
+.stat-table th { font-size: .66rem; text-transform: uppercase; letter-spacing: .03em; color: #68736d; background: #f6f8f7; }
+.bars { display: grid; gap: 5px; }
+.bar-row { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; align-items: center; font-size: .72rem; }
+.bar { height: 10px; background: #eef1ef; border-radius: 6px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: #2f8f6b; border-radius: 6px; }
