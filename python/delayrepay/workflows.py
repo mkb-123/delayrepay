@@ -7,7 +7,7 @@ from typing import Any
 
 from .domain.assessment import assess
 from .ingestion.rtt import RttClient, RttError
-from .ingestion.services import WINDOWS, in_window, minutes_between, normalize
+from .ingestion.services import CONTEXT_MINUTES, WINDOWS, in_context_window, in_window, minutes_between, normalize
 from .storage.sqlite import Database, catalogue_path, read_json, write_json
 
 LOGGER = logging.getLogger("delayrepay.workflow")
@@ -88,7 +88,7 @@ def discover(root: Path, service_date: str, client: RttClient, direction: str = 
     for current_direction in selected:
         window = WINDOWS[current_direction]
         LOGGER.info("Loading %s origin and destination lineups", current_direction.lower())
-        origin_line = client.lineup(window["origin"], service_date, window["from"], window["to"])
+        origin_line = client.lineup(window["origin"], service_date, window["from"], _later(window["to"], CONTEXT_MINUTES))
         destination_line = client.lineup(window["destination"], service_date, window["from"], _later(window["to"], 90))
         origins = {
             item.get("scheduleMetadata", {}).get("uniqueIdentity"): item
@@ -117,7 +117,7 @@ def discover(root: Path, service_date: str, client: RttClient, direction: str = 
                 or metadata.get("inPassengerService") is not True
                 or not scheduled_departure
                 or not scheduled_arrival
-                or not (window["from"] <= scheduled_departure[11:16] <= window["to"])
+                or not (window["from"] <= scheduled_departure[11:16] <= _later(window["to"], CONTEXT_MINUTES))
                 or duration is None
                 or not (0 <= duration <= 60)
             ):
@@ -130,6 +130,7 @@ def discover(root: Path, service_date: str, client: RttClient, direction: str = 
                 "scheduledDeparture": scheduled_departure[11:16], "scheduledArrival": scheduled_arrival[11:16],
                 "operatorCode": operator.get("code", "UNKNOWN"), "operatorName": operator.get("name", "Unknown operator"),
                 "discoveredFrom": service_date,
+                "context": scheduled_departure[11:16] > window["to"],
             })
     _save_catalogue(root, service_date, found, selected)
     return found
@@ -216,6 +217,8 @@ def collect(root: Path, service_date: str, client: RttClient | None, dry_run: bo
             service = _service_from_lineups(entry, origins[identity], destinations[identity], _now())
             if in_window(service):
                 services.append(service)
+            elif entry.get("context") and in_context_window(service):
+                services.append({**service, "context": True})
     value = {"version": 1, "date": service_date, "collectedAt": _now(), "complete": not errors, "services": services, "errors": errors}
     with Database(root) as database:
         database.save_collection(value)
@@ -236,7 +239,7 @@ def build_report_data(database: Database, service_date: str, action_only: bool, 
     LOGGER.info("Assessing %d stored services for %s", len(services), service_date)
     all_rows = []
     assessed_at = _now()
-    for service in services:
+    for service in (item for item in services if not item.get("context")):
         evaluation = assess(
             service, services, database.claimed_at(service["serviceId"]),
             database.not_claimable_at(service["serviceId"]), database.superseded_by(service["serviceId"]),

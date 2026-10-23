@@ -70,6 +70,26 @@ def normalize(payload: dict[str, Any], direction: str, collected_at: str) -> dic
     }
 
 
+# Trains up to this many minutes after a window are stored as context only. They are never offered as claims;
+# they let a cancelled last-in-window train take its delay from the next train of the same operator.
+CONTEXT_MINUTES = 60
+
+
+def _plus_minutes(clock: str, minutes: int) -> str:
+    total = int(clock[:2]) * 60 + int(clock[3:5]) + minutes
+    return f"{min(total // 60, 23):02d}:{total % 60:02d}"
+
+
+def in_context_window(service: dict[str, Any]) -> bool:
+    departure = service.get("scheduledDeparture")
+    if not departure:
+        return False
+    clock = departure[11:16]
+    window = WINDOWS[service["direction"]]
+    duration = minutes_between(service.get("scheduledArrival"), departure)
+    return window["to"] < clock <= _plus_minutes(window["to"], CONTEXT_MINUTES) and duration is not None and 0 <= duration <= 60
+
+
 def in_window(service: dict[str, Any]) -> bool:
     departure = service.get("scheduledDeparture")
     if not departure:
