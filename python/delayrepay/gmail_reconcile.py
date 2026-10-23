@@ -32,6 +32,7 @@ class ParsedClaim:
     origin: str | None
     destination: str | None
     amount_pence: int | None = None
+    reason: str | None = None
 
 
 def _oauth_paths() -> tuple[Path, Path]:
@@ -149,7 +150,19 @@ def parse_claim(sender: str, subject: str, text: str) -> ParsedClaim | None:
     elif outcome == "SUBMITTED":
         amount_match = re.search(r"compensation of\s+£\s*([\d,]+\.\d\d)", combined, re.I)
     amount_pence = round(float(amount_match.group(1).replace(",", "")) * 100) if amount_match else None
-    return ParsedClaim(operator, reference_match.group(1) if reference_match else None, outcome, _iso_date(date_match.group(1)) if date_match else None, time, origin, destination, amount_pence)
+    reason = None
+    if outcome == "REJECTED":
+        if "another train operator" in lower or "operated by another" in lower:
+            reason = "WRONG_OPERATOR"
+        elif "earlier service" in lower or "alternative route" in lower:
+            reason = "TICKET_USED_ELSEWHERE"
+        elif "overall delay" in lower or "no compensation is due" in lower or "below the" in lower:
+            reason = "DELAY_BELOW_THRESHOLD"
+        elif "duplicate" in lower:
+            reason = "DUPLICATE"
+        else:
+            reason = "OTHER"
+    return ParsedClaim(operator, reference_match.group(1) if reference_match else None, outcome, _iso_date(date_match.group(1)) if date_match else None, time, origin, destination, amount_pence, reason)
 
 
 def _match_service(database: Database, claim: ParsedClaim) -> tuple[str | None, str]:
@@ -208,6 +221,13 @@ def process_message(database: Database, counts: dict[str, int], message_id: str,
     counts["stored"] += int(not existed)
     counts["matched" if service_id else "excluded"] += 1
     record_amount(database, claim, service_id, received_at, "email")
+    record_reason(database, claim, received_at)
+
+
+def record_reason(database: Database, claim: ParsedClaim, received_at: str) -> None:
+    if claim.reason and claim.claim_reference:
+        database.save_claim_reason(claim_reference=claim.claim_reference, reason=claim.reason,
+                                   operator_code=claim.operator_code, received_at=received_at)
 
 
 AMOUNT_KINDS = {"APPROVED": "APPROVED", "PAID": "PAID", "SUBMITTED": "EXPECTED"}
@@ -234,6 +254,7 @@ def ingest_messages(database: Database, messages: list[dict[str, Any]]) -> dict[
             if claim:
                 received = datetime.fromtimestamp(int(item["internalDate"]) / 1000, timezone.utc).isoformat()
                 record_amount(database, claim, _match_service(database, claim)[0], received, "email")
+                record_reason(database, claim, received)
             continue
         process_message(database, counts, item["id"], item["sender"], item.get("subject", ""), item.get("text", ""), int(item["internalDate"]))
     database.set_last_gmail_reconciliation(datetime.now(timezone.utc).isoformat())

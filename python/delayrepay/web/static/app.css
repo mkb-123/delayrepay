@@ -220,3 +220,4 @@ main > section > h2 { font-size: .95rem; margin: 16px 0 6px; }
 .bar-row { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; align-items: center; font-size: .72rem; }
 .bar { height: 10px; background: #eef1ef; border-radius: 6px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: #2f8f6b; border-radius: 6px; }
+.stat-table tr.urgent-row td { background: #fdecec; color: #8a1f1f; font-weight: 700; }

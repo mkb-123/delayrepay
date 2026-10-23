@@ -129,6 +129,13 @@ class Database:
             );
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             -- Amounts exactly as the operator states them (never calculated here).
+            -- Why the operator rejected a claim, classified from its email (no email text is stored).
+            CREATE TABLE IF NOT EXISTS claim_reasons (
+                claim_reference TEXT PRIMARY KEY,
+                reason TEXT NOT NULL,
+                operator_code TEXT NOT NULL,
+                received_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS claim_amounts (
                 claim_reference TEXT NOT NULL,
                 kind TEXT NOT NULL CHECK (kind IN ('EXPECTED', 'APPROVED', 'PAID')),
@@ -584,6 +591,14 @@ class Database:
                             claim_reference=excluded.claim_reference,
                             explanation=excluded.explanation, updated_at=excluded.updated_at
                     """, (service_id, outcome, received_at, operator_code, claim_reference, explanation))
+
+    def save_claim_reason(self, *, claim_reference: str, reason: str, operator_code: str, received_at: str) -> None:
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO claim_reasons(claim_reference, reason, operator_code, received_at) VALUES(?, ?, ?, ?)
+                ON CONFLICT(claim_reference) DO UPDATE SET reason=excluded.reason, received_at=excluded.received_at
+                WHERE excluded.received_at >= claim_reasons.received_at
+            """, (claim_reference, reason, operator_code, received_at))
 
     def save_claim_amount(
         self, *, claim_reference: str, kind: str, operator_code: str, amount_pence: int,
