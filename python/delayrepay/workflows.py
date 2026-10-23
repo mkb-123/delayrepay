@@ -338,7 +338,8 @@ def build_recommendations(
             recommendations.append({
                 "direction": direction, "status": "NEEDS_REVIEW", "serviceId": row["serviceId"],
                 "scheduledDeparture": row.get("scheduledDeparture"), "operatorName": row["operatorName"],
-                "effectiveDelayMinutes": selected[1].get("effectiveDelayMinutes") if selected else None,
+                "effectiveDelayMinutes": selected[1].get("effectiveDelayMinutes") if selected else row["assessment"].get("effectiveDelayMinutes"),
+                "rawDelayMinutes": row.get("rawDelayMinutes"),
                 "explanation": "Collection is incomplete; review this disruption before claiming." if not report_data.get("sourceComplete", False) else row["assessment"]["explanation"],
                 "claimUrl": row["assessment"].get("claimUrl"), "claimedAt": row["assessment"].get("claimedAt"),
                 "claimLifecycle": row["assessment"].get("claimLifecycle"),
