@@ -222,6 +222,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now delayrepay.service delayrepay-collect.timer delayrepay-email.timer delayrepay-reconcile.timer delayrepay-backup.timer delayrepay-avahi-alias.service avahi-daemon.service nginx.service
 sudo systemctl restart nginx.service
 
+"$repo_dir/deploy/raspberry-pi/install-auto-deploy.sh"
+
 echo "Delay Repay installed."
 echo "Dashboard: http://delayrepay.local"
 echo "Status: sudo systemctl status delayrepay.service"

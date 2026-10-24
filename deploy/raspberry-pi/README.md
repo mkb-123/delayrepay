@@ -9,6 +9,7 @@ This setup targets Raspberry Pi OS or another Debian-based distribution with sys
 - `delayrepay-email.timer`: outstanding-claims email at 09:00 Saturday;
 - `delayrepay-reconcile.timer`: read-only Gmail claim reconciliation at 20:00 daily;
 - `delayrepay-backup.timer`: consistent SQLite backup at 02:30 daily, retaining 30;
+- `delayrepay-auto-update.timer`: every 5 minutes, fast-forwards to `origin/main` if it moved, reinstalls if `pyproject.toml` changed, smoke-tests, restarts the dashboard, and rolls back (remembering the bad commit) on failure. Merging to `main` is the deploy. Install on an existing Pi with `./deploy/raspberry-pi/install-auto-deploy.sh`; logs via `journalctl -u delayrepay-auto-update.service`;
 - Avahi/mDNS access at `http://delayrepay.local` through Nginx;
 - runtime SQLite and catalogue files in `/var/lib/delayrepay`, separate from Git.
 
