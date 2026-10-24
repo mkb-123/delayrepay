@@ -3,15 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>Delay Repay stats</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='stats.css') }}">
 </head>
 <body>
   <header>
     <div><p class="eyebrow">MKC ↔ EUS</p><h1>Stats</h1></div>
     <a class="stats-link" href="/">← Dashboard</a>
   </header>
-  <main id="stats"><p class="empty">Loading…</p></main>
+  <div class="stats-wrap">
+    <nav class="stats-tabs" role="tablist" aria-label="Stats sections">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="claims" aria-selected="false">Claims</button>
+      <button role="tab" data-tab="trains" aria-selected="false">Trains</button>
+      <button role="tab" data-tab="patterns" aria-selected="false">Patterns</button>
+    </nav>
+    <main id="stats"><p class="empty-note">Loading…</p></main>
+  </div>
   <script src="{{ url_for('static', filename='stats.js') }}"></script>
 </body>
 </html>
